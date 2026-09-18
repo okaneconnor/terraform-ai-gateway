@@ -42,3 +42,9 @@ terraform.rc
 # Optional: ignore plan files saved before destroying Terraform configuration
 # Uncomment the line below if you want to ignore planout files.
 # planout
+# Internal planning artifacts (never published)
+docs/superpowers/
+.superpowers/
+
+# A shared module must not pin its consumers to a provider build
+.terraform.lock.hcl
