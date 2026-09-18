@@ -53,6 +53,7 @@ variable "custom_names" {
     route_table                = optional(string)
     key_vault                  = optional(string)
     key_vault_private_endpoint = optional(string)
+    key_vault_private_dns_link = optional(string)
     identity                   = optional(string)
     log_analytics              = optional(string)
     application_insights       = optional(string)

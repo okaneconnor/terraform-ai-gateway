@@ -10,13 +10,11 @@ resource "azurerm_key_vault" "platform" {
   rbac_authorization_enabled    = true
   purge_protection_enabled      = var.key_vault.purge_protection_enabled
   soft_delete_retention_days    = var.key_vault.soft_delete_retention_days
-  public_network_access_enabled = local.key_vault_public_network_access
+  public_network_access_enabled = false
 
   network_acls {
-    bypass                     = "AzureServices"
-    default_action             = local.key_vault_default_action
-    ip_rules                   = var.key_vault.allowed_ip_rules
-    virtual_network_subnet_ids = var.key_vault.allowed_subnet_ids
+    bypass         = "AzureServices"
+    default_action = "Deny"
   }
 
   lifecycle {
@@ -32,7 +30,7 @@ resource "azurerm_key_vault" "platform" {
 }
 
 resource "azurerm_private_endpoint" "key_vault" {
-  for_each            = local.create_key_vault && var.key_vault.create_private_endpoint ? { key_vault = {} } : {}
+  for_each            = local.key_vault_private_endpoint ? { key_vault = {} } : {}
   name                = local.names.key_vault_private_endpoint
   resource_group_name = local.resource_group_name
   location            = var.location
@@ -47,10 +45,10 @@ resource "azurerm_private_endpoint" "key_vault" {
   }
 
   dynamic "private_dns_zone_group" {
-    for_each = length(var.key_vault.private_dns_zone_ids) > 0 ? [1] : []
+    for_each = length(local.key_vault_private_dns_zone_ids) > 0 ? [1] : []
     content {
       name                 = "default"
-      private_dns_zone_ids = var.key_vault.private_dns_zone_ids
+      private_dns_zone_ids = local.key_vault_private_dns_zone_ids
     }
   }
 }
@@ -79,4 +77,24 @@ resource "azurerm_role_assignment" "key_vault_secrets_users" {
   scope                = azurerm_key_vault.platform["platform"].id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = each.value
+}
+
+# Without this the vault hostname resolves to its public address, which is disabled,
+# so the vault is unreachable from anywhere. The zone name is fixed by Azure.
+resource "azurerm_private_dns_zone" "key_vault" {
+  for_each = local.key_vault_dns_zone ? { key_vault = {} } : {}
+
+  name                = "privatelink.vaultcore.azure.net"
+  resource_group_name = local.resource_group_name
+  tags                = var.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "key_vault" {
+  for_each = local.key_vault_dns_zone ? { key_vault = {} } : {}
+
+  name                  = local.names.key_vault_private_dns_link
+  resource_group_name   = local.resource_group_name
+  private_dns_zone_name = azurerm_private_dns_zone.key_vault["key_vault"].name
+  virtual_network_id    = local.private_endpoint_virtual_network_id
+  tags                  = var.tags
 }

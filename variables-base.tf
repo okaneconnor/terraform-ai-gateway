@@ -164,39 +164,31 @@ variable "key_vault" {
   description = <<-EOT
     Settings for the Key Vault the module creates.
 
-    network_access chooses the posture:
-      private    - public access off, reachable only through the private endpoint
-                   from inside the network. The most secure option, and the one
-                   that makes secrets invisible from a workstation.
-      firewalled - public endpoint on, default action Deny, reachable only from
-                   allowed_ip_rules and allowed_subnet_ids. Use this when an
-                   operator has to read secrets from outside the network.
-      public     - public endpoint on, default action Allow. Development only.
+    The vault is always private: public network access is disabled and the firewall
+    denies by default, so it is reachable only through its private endpoint from
+    inside the network. There is no option to expose it publicly. A consumer who
+    needs a differently-shaped vault supplies one with existing_key_vault_id.
+
+    Private access only works if the vault's hostname resolves to the private
+    endpoint, which needs a privatelink.vaultcore.azure.net zone linked to the
+    network doing the lookup. Leave create_private_dns_zone true and the module
+    creates and links it. Set private_dns_zone_ids instead to attach a central zone
+    you already own. Set both off only if DNS is registered by something else, such
+    as an Azure Policy deployIfNotExists.
   EOT
   type = object({
     sku_name                   = optional(string, "standard")
     purge_protection_enabled   = optional(bool, true) # irreversible once applied: Azure forbids turning it back off, and a destroyed vault's name stays reserved for the soft-delete retention period
     soft_delete_retention_days = optional(number, 90)
     create_private_endpoint    = optional(bool, true)
+    create_private_dns_zone    = optional(bool, true)
     private_dns_zone_ids       = optional(list(string), [])
-    network_access             = optional(string, "private")
-    allowed_ip_rules           = optional(list(string), [])
-    allowed_subnet_ids         = optional(list(string), [])
   })
   default = {}
 
   validation {
-    condition     = contains(["private", "firewalled", "public"], var.key_vault.network_access)
-    error_message = "key_vault.network_access must be one of: private, firewalled, public."
-  }
-
-  validation {
-    condition = (
-      var.key_vault.network_access != "firewalled" ||
-      length(var.key_vault.allowed_ip_rules) > 0 ||
-      length(var.key_vault.allowed_subnet_ids) > 0
-    )
-    error_message = "key_vault.network_access = \"firewalled\" requires at least one entry in allowed_ip_rules or allowed_subnet_ids, otherwise nothing can reach the vault."
+    condition     = !(var.key_vault.create_private_dns_zone && length(var.key_vault.private_dns_zone_ids) > 0)
+    error_message = "Set either key_vault.create_private_dns_zone or key_vault.private_dns_zone_ids, not both: the module would otherwise create a zone and then attach a different one."
   }
 }
 
