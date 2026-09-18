@@ -45,3 +45,14 @@ resource "azurerm_subnet" "private_endpoints" {
   address_prefixes                  = [local.private_endpoint_subnet_prefix]
   private_endpoint_network_policies = "Disabled"
 }
+
+# Private DNS zones for the endpoints in this network are usually central and owned
+# elsewhere. This lets whatever manages them link those zones to this network.
+resource "azurerm_role_assignment" "private_dns_linker" {
+  for_each = local.create_network ? toset(var.private_dns_linker_principal_ids) : toset([])
+
+  scope                = azurerm_virtual_network.gateway["gateway"].id
+  role_definition_name = "Network Contributor"
+  principal_id         = each.value
+  description          = "Allow a central private-DNS pipeline to link private DNS zones to this network"
+}

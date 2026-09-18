@@ -41,15 +41,10 @@ locals {
   create_key_vault = var.existing_key_vault_id == null
 
   key_vault_private_endpoint = local.create_key_vault && var.key_vault.create_private_endpoint
-  key_vault_dns_zone         = local.key_vault_private_endpoint && var.key_vault.create_private_dns_zone
 
-  # A private endpoint is only reachable if the querying network resolves the vault
-  # hostname to it, so the zone is linked to the network the endpoint sits in. A
-  # subnet id always ends /subnets/<name>, so trimming that gives the network's id
-  # whether the module created it or the caller supplied it.
+  # A subnet id always ends /subnets/<name>, so trimming that gives the network's id
+  # whether the module created the network or the caller supplied it.
   private_endpoint_virtual_network_id = replace(local.subnet_ids.private_endpoints, "/\\/subnets\\/[^/]+$/", "")
-
-  key_vault_private_dns_zone_ids = local.key_vault_dns_zone ? [azurerm_private_dns_zone.key_vault["key_vault"].id] : var.key_vault.private_dns_zone_ids
 
   # RBAC grants no data-plane access implicitly, so without this the module cannot
   # write subscription keys into the vault it just created.

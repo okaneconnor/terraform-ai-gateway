@@ -52,7 +52,6 @@ locals {
     route_table                = coalesce(var.custom_names.route_table, "rt-${local.name_base}")
     key_vault                  = coalesce(var.custom_names.key_vault, "kv-${local.name_base}")
     key_vault_private_endpoint = coalesce(var.custom_names.key_vault_private_endpoint, "pep-kv-${local.name_base}")
-    key_vault_private_dns_link = coalesce(var.custom_names.key_vault_private_dns_link, "link-kv-${local.name_base}")
     identity                   = coalesce(var.custom_names.identity, "id-${local.name_base}")
     log_analytics              = coalesce(var.custom_names.log_analytics, "log-${local.name_base}")
     application_insights       = coalesce(var.custom_names.application_insights, "appi-${local.name_base}")

@@ -169,27 +169,33 @@ variable "key_vault" {
     inside the network. There is no option to expose it publicly. A consumer who
     needs a differently-shaped vault supplies one with existing_key_vault_id.
 
-    Private access only works if the vault's hostname resolves to the private
-    endpoint, which needs a privatelink.vaultcore.azure.net zone linked to the
-    network doing the lookup. Leave create_private_dns_zone true and the module
-    creates and links it. Set private_dns_zone_ids instead to attach a central zone
-    you already own. Set both off only if DNS is registered by something else, such
-    as an Azure Policy deployIfNotExists.
+    Private access only works once the vault hostname resolves to the endpoint,
+    which needs a privatelink.vaultcore.azure.net zone linked to the network doing
+    the lookup. The module does not own that zone: in most estates it is central and
+    shared. Attach one with private_dns_zone_ids, or leave it empty and let whatever
+    manages your zones register the record, granting it access to the network with
+    private_dns_linker_principal_ids.
   EOT
   type = object({
     sku_name                   = optional(string, "standard")
     purge_protection_enabled   = optional(bool, true) # irreversible once applied: Azure forbids turning it back off, and a destroyed vault's name stays reserved for the soft-delete retention period
     soft_delete_retention_days = optional(number, 90)
     create_private_endpoint    = optional(bool, true)
-    create_private_dns_zone    = optional(bool, true)
     private_dns_zone_ids       = optional(list(string), [])
   })
   default = {}
+}
 
-  validation {
-    condition     = !(var.key_vault.create_private_dns_zone && length(var.key_vault.private_dns_zone_ids) > 0)
-    error_message = "Set either key_vault.create_private_dns_zone or key_vault.private_dns_zone_ids, not both: the module would otherwise create a zone and then attach a different one."
-  }
+variable "key_vault_reader_principal_ids" {
+  description = "Object IDs granted Key Vault Reader on the vault: see the vault and enumerate secret names, without access to any secret value. This is what an operator needs to find a secret before a separate role lets them read it."
+  type        = list(string)
+  default     = []
+}
+
+variable "private_dns_linker_principal_ids" {
+  description = "Object IDs granted Network Contributor on the virtual network so a central private-DNS pipeline can link its zones to it. Leave empty when the module's own network is not used, or when zones are linked by other means."
+  type        = list(string)
+  default     = []
 }
 
 variable "key_vault_secrets_officer_principal_ids" {

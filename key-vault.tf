@@ -45,10 +45,10 @@ resource "azurerm_private_endpoint" "key_vault" {
   }
 
   dynamic "private_dns_zone_group" {
-    for_each = length(local.key_vault_private_dns_zone_ids) > 0 ? [1] : []
+    for_each = length(var.key_vault.private_dns_zone_ids) > 0 ? [1] : []
     content {
       name                 = "default"
-      private_dns_zone_ids = local.key_vault_private_dns_zone_ids
+      private_dns_zone_ids = var.key_vault.private_dns_zone_ids
     }
   }
 }
@@ -79,22 +79,13 @@ resource "azurerm_role_assignment" "key_vault_secrets_users" {
   principal_id         = each.value
 }
 
-# Without this the vault hostname resolves to its public address, which is disabled,
-# so the vault is unreachable from anywhere. The zone name is fixed by Azure.
-resource "azurerm_private_dns_zone" "key_vault" {
-  for_each = local.key_vault_dns_zone ? { key_vault = {} } : {}
 
-  name                = "privatelink.vaultcore.azure.net"
-  resource_group_name = local.resource_group_name
-  tags                = var.tags
-}
+# Seeing the vault and enumerating secret names is a separate role from reading a
+# value. Operators need this to find a secret at all; it exposes no secret data.
+resource "azurerm_role_assignment" "key_vault_readers" {
+  for_each = local.create_key_vault ? toset(var.key_vault_reader_principal_ids) : toset([])
 
-resource "azurerm_private_dns_zone_virtual_network_link" "key_vault" {
-  for_each = local.key_vault_dns_zone ? { key_vault = {} } : {}
-
-  name                  = local.names.key_vault_private_dns_link
-  resource_group_name   = local.resource_group_name
-  private_dns_zone_name = azurerm_private_dns_zone.key_vault["key_vault"].name
-  virtual_network_id    = local.private_endpoint_virtual_network_id
-  tags                  = var.tags
+  scope                = azurerm_key_vault.platform["platform"].id
+  role_definition_name = "Key Vault Reader"
+  principal_id         = each.value
 }
