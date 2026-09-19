@@ -7,43 +7,15 @@ capabilities and onboarding follow.
 
 Licensed under the [MIT License](LICENSE).
 
-## Reaching the Key Vault
+## Key Vault
 
-The vault holds the API Management subscription keys issued to onboarded teams. It
-has no public network access and its firewall denies by default, so it is reachable
-only through its private endpoint, from inside the network.
+The vault holding teams' subscription keys is private: no public access, reachable
+only through its private endpoint. The module creates no private DNS zone, because
+that zone is usually shared across an organisation, and Azure grants no access to
+secrets by default.
 
-**The module does not create a private DNS zone.** In most estates
-`privatelink.vaultcore.azure.net` is central and shared, and a module that creates
-its own either collides with it or leaves an orphan nobody maintains. Until
-something registers the vault's record, its hostname resolves to a public address
-that is disabled, and every call fails with `Forbidden` — including from inside the
-network. Close that in one of two ways:
-
-- Attach a zone you already own with `key_vault.private_dns_zone_ids`, and Azure
-  registers the A record on the endpoint for you.
-- Let a central pipeline manage the zones, granting it access to the network with
-  `private_dns_linker_principal_ids`. The `key_vault_private_endpoint_ip` output
-  gives the address to register.
-
-Resolution is only half of it: a private endpoint is reachable only from a network
-that resolves it, so a workload in the network works, and a laptop on the internet
-does not. To read a secret yourself you need to be on the network, via a VPN with
-conditional forwarders for `vault.azure.net` and `vaultcore.azure.net`, a jump host,
-or a self-hosted build agent.
-
-Access is granted by role, and none is implicit:
-
-| Input | Role | What it allows |
-| --- | --- | --- |
-| `key_vault_reader_principal_ids` | Key Vault Reader | see the vault and list secret names, no values |
-| `key_vault_secrets_officer_principal_ids` | Key Vault Secrets Officer | read, write and delete any secret |
-| `key_vault_secrets_user_principal_ids` | Key Vault Secrets User | read every secret in the vault |
-| `key_vault_grant_deployer_secrets_officer` | Key Vault Secrets Officer | lets Terraform itself write subscription keys |
-
-An onboarded team is not granted any of these. Vault-wide read would let one team
-read another's key, so the onboarding layer grants Key Vault Secrets User scoped to
-that team's individual secret.
+Both need setting up before anyone can read a secret. See
+[docs/key-vault-access.md](docs/key-vault-access.md).
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
