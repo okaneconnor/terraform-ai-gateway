@@ -46,6 +46,13 @@
             </set-header>
             <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;Token quota exceeded for this subscription.&quot;), new JProperty(&quot;type&quot;, &quot;rate_limit_error&quot;), new JProperty(&quot;code&quot;, &quot;token_quota_exceeded&quot;)))).ToString())</set-body>
         </when>
+        <!-- A path matching no API arrives here. Reporting it as 500 tells the caller
+             the gateway is broken and makes clients retry a route that will never
+             exist, so it is answered as what it is. -->
+        <when condition="@(context.Response != null &amp;&amp; context.Response.StatusCode == 404)">
+            <set-status code="404" reason="Not Found" />
+            <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;No such route on this gateway.&quot;), new JProperty(&quot;type&quot;, &quot;invalid_request_error&quot;), new JProperty(&quot;code&quot;, &quot;route_not_found&quot;)))).ToString())</set-body>
+        </when>
         <otherwise>
             <set-status code="500" reason="Internal Server Error" />
             <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;An unexpected error occurred.&quot;), new JProperty(&quot;type&quot;, &quot;api_error&quot;), new JProperty(&quot;code&quot;, &quot;internal_error&quot;)))).ToString())</set-body>
