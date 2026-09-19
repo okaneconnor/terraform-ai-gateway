@@ -55,6 +55,12 @@ locals {
     identity                   = coalesce(var.custom_names.identity, "id-${local.name_base}")
     log_analytics              = coalesce(var.custom_names.log_analytics, "log-${local.name_base}")
     application_insights       = coalesce(var.custom_names.application_insights, "appi-${local.name_base}")
+
+    ai_services                     = coalesce(var.custom_names.ai_services, "aif-${local.name_base}")
+    ai_services_private_endpoint    = coalesce(var.custom_names.ai_services_private_endpoint, "pep-aif-${local.name_base}")
+    content_safety                  = coalesce(var.custom_names.content_safety, "cs-${local.name_base}")
+    content_safety_private_endpoint = coalesce(var.custom_names.content_safety_private_endpoint, "pep-cs-${local.name_base}")
+    apim                            = coalesce(var.custom_names.apim, "apim-${local.name_base}")
   }
 
   # Azure length limits that a long name_prefix, environment or instance can breach.

@@ -1,0 +1,16 @@
+<policies>
+    <inbound>
+        <set-header name="x-correlation-id" exists-action="skip">
+            <value>@(context.RequestId.ToString())</value>
+        </set-header>
+        <include-fragment fragment-id="ai-auth-entra-jwt" />
+        <include-fragment fragment-id="ai-observability" />
+    </inbound>
+    <backend>
+        <forward-request />
+    </backend>
+    <outbound />
+    <on-error>
+        <include-fragment fragment-id="ai-error-handling" />
+    </on-error>
+</policies>

@@ -1,0 +1,54 @@
+<fragment>
+    <set-header name="Content-Type" exists-action="override">
+        <value>application/json</value>
+    </set-header>
+    <set-header name="x-correlation-id" exists-action="override">
+        <value>@(context.RequestId.ToString())</value>
+    </set-header>
+    <choose>
+        <when condition="@(context.LastError.Source == &quot;validate-azure-ad-token&quot;)">
+            <set-status code="401" reason="Unauthorized" />
+            <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;The provided token is invalid or has expired.&quot;), new JProperty(&quot;type&quot;, &quot;authentication_error&quot;), new JProperty(&quot;code&quot;, &quot;invalid_token&quot;)))).ToString())</set-body>
+        </when>
+        <when condition="@(context.LastError.Source == &quot;authorization&quot;)">
+            <set-status code="401" reason="Unauthorized" />
+            <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, context.LastError.Reason == &quot;SubscriptionKeyNotFound&quot; ? &quot;No APIM subscription key was provided.&quot; : &quot;The APIM subscription key is invalid or revoked.&quot;), new JProperty(&quot;type&quot;, &quot;authentication_error&quot;), new JProperty(&quot;code&quot;, context.LastError.Reason == &quot;SubscriptionKeyNotFound&quot; ? &quot;missing_subscription_key&quot; : &quot;invalid_subscription_key&quot;)))).ToString())</set-body>
+        </when>
+        <when condition="@(context.LastError.Source == &quot;rate-limit-by-key&quot;)">
+            <set-status code="429" reason="Too Many Requests" />
+            <set-header name="Retry-After" exists-action="override">
+                <value>60</value>
+            </set-header>
+            <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;Request rate limit exceeded.&quot;), new JProperty(&quot;type&quot;, &quot;rate_limit_error&quot;), new JProperty(&quot;code&quot;, &quot;rate_limit_exceeded&quot;)))).ToString())</set-body>
+        </when>
+        <!-- Content safety returned a verdict and blocked the prompt: the error is raised
+             by the policy itself. (llm-content-safety does not accept an id attribute, so
+             Source is the only discriminator available.) -->
+        <when condition="@(context.LastError.Source == &quot;llm-content-safety&quot;)">
+            <set-status code="400" reason="Content Filtered" />
+            <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;Request blocked by content safety policy.&quot;), new JProperty(&quot;type&quot;, &quot;invalid_request_error&quot;), new JProperty(&quot;code&quot;, &quot;content_filtered&quot;)))).ToString())</set-body>
+        </when>
+        <!-- Same reason, but raised while calling the content safety backend rather than
+             by the policy itself - the check never returned a verdict (e.g. the service
+             throttled). Not the caller's content and not the caller's fault, so it is a
+             retryable 503 rather than a block. -->
+        <when condition="@(context.LastError.Reason == &quot;ContentSafetyPolicyViolated&quot;)">
+            <set-status code="503" reason="Service Unavailable" />
+            <set-header name="Retry-After" exists-action="override">
+                <value>60</value>
+            </set-header>
+            <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;Content safety checks are temporarily unavailable. Retry after the interval in the Retry-After header.&quot;), new JProperty(&quot;type&quot;, &quot;api_error&quot;), new JProperty(&quot;code&quot;, &quot;content_safety_unavailable&quot;)))).ToString())</set-body>
+        </when>
+        <when condition="@(context.LastError.Source == &quot;quota-by-key&quot; || context.LastError.Source == &quot;llm-token-limit&quot;)">
+            <set-status code="429" reason="Too Many Requests" />
+            <set-header name="Retry-After" exists-action="override">
+                <value>60</value>
+            </set-header>
+            <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;Token quota exceeded for this subscription.&quot;), new JProperty(&quot;type&quot;, &quot;rate_limit_error&quot;), new JProperty(&quot;code&quot;, &quot;token_quota_exceeded&quot;)))).ToString())</set-body>
+        </when>
+        <otherwise>
+            <set-status code="500" reason="Internal Server Error" />
+            <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;An unexpected error occurred.&quot;), new JProperty(&quot;type&quot;, &quot;api_error&quot;), new JProperty(&quot;code&quot;, &quot;internal_error&quot;)))).ToString())</set-body>
+        </otherwise>
+    </choose>
+</fragment>

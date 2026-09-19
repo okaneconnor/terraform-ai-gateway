@@ -50,6 +50,12 @@ variable "custom_names" {
     identity                   = optional(string)
     log_analytics              = optional(string)
     application_insights       = optional(string)
+
+    ai_services                     = optional(string)
+    ai_services_private_endpoint    = optional(string)
+    content_safety                  = optional(string)
+    content_safety_private_endpoint = optional(string)
+    apim                            = optional(string)
   })
   default = {}
 }
