@@ -4,7 +4,6 @@ resource "azurerm_log_analytics_workspace" "platform" {
   location            = var.location
   sku                 = var.log_analytics.sku
   retention_in_days   = var.log_analytics.retention_in_days
-  tags                = var.tags
 }
 
 resource "azurerm_application_insights" "gateway" {
@@ -13,5 +12,4 @@ resource "azurerm_application_insights" "gateway" {
   location            = var.location
   workspace_id        = azurerm_log_analytics_workspace.platform.id
   application_type    = "web"
-  tags                = var.tags
 }

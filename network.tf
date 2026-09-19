@@ -3,7 +3,6 @@ resource "azurerm_virtual_network" "gateway" {
   resource_group_name = local.resource_group_name
   location            = var.location
   address_space       = [var.address_space]
-  tags                = var.tags
 
   lifecycle {
     precondition {

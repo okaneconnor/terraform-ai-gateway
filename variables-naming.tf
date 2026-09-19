@@ -35,12 +35,6 @@ variable "location" {
   type        = string
 }
 
-variable "tags" {
-  description = "Tags applied to every resource that supports them. The module adds none of its own."
-  type        = map(string)
-  default     = {}
-}
-
 variable "custom_names" {
   description = "Explicit name for individual resources, replacing the generated CAF name. Use when an existing naming convention must be matched, or when a generated name would exceed an Azure length limit."
   type = object({

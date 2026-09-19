@@ -6,8 +6,4 @@ module "ai_gateway_platform" {
   location    = "uksouth"
 
   address_space = "10.60.0.0/22"
-
-  tags = {
-    owner = "platform-team"
-  }
 }

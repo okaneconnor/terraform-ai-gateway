@@ -4,7 +4,6 @@ resource "azurerm_key_vault" "platform" {
   location            = var.location
   tenant_id           = data.azurerm_client_config.current.tenant_id
   sku_name            = var.key_vault.sku_name
-  tags                = var.tags
 
   rbac_authorization_enabled    = true
   purge_protection_enabled      = var.key_vault.purge_protection_enabled
@@ -35,7 +34,6 @@ resource "azurerm_private_endpoint" "key_vault" {
   resource_group_name = local.resource_group_name
   location            = var.location
   subnet_id           = azurerm_subnet.private_endpoints.id
-  tags                = var.tags
 
   private_service_connection {
     name                           = "psc-kv"

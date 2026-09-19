@@ -2,7 +2,6 @@ resource "azurerm_network_security_group" "apim" {
   name                = local.names.apim_nsg
   resource_group_name = local.resource_group_name
   location            = var.location
-  tags                = var.tags
 }
 
 resource "azurerm_network_security_rule" "apim" {
@@ -37,7 +36,6 @@ resource "azurerm_network_security_group" "private_endpoints" {
   name                = local.names.private_endpoint_nsg
   resource_group_name = local.resource_group_name
   location            = var.location
-  tags                = var.tags
 }
 
 resource "azurerm_network_security_rule" "private_endpoints" {
@@ -73,7 +71,6 @@ resource "azurerm_route_table" "apim" {
   name                = local.names.route_table
   resource_group_name = local.resource_group_name
   location            = var.location
-  tags                = var.tags
 }
 
 resource "azurerm_route" "apim" {
