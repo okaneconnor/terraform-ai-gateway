@@ -7,16 +7,6 @@ capabilities and onboarding follow.
 
 Licensed under the [MIT License](LICENSE).
 
-## Key Vault
-
-The vault holding teams' subscription keys is private: no public access, reachable
-only through its private endpoint. The module creates no private DNS zone, because
-that zone is usually shared across an organisation, and Azure grants no access to
-secrets by default.
-
-Both need setting up before anyone can read a secret. See
-[docs/key-vault-access.md](docs/key-vault-access.md).
-
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
