@@ -4,7 +4,7 @@ output "resource_names" {
 }
 
 output "resource_group_name" {
-  description = "Name of the resource group holding the gateway, whether created here or supplied."
+  description = "Name of the resource group holding the gateway."
   value       = local.resource_group_name
 }
 
@@ -14,12 +14,12 @@ output "resource_group_id" {
 }
 
 output "virtual_network_id" {
-  description = "Resource ID of the virtual network, or null when existing subnets were supplied. Peer to a hub using this."
-  value       = local.create_network ? azurerm_virtual_network.gateway["gateway"].id : null
+  description = "Resource ID of the virtual network. Peer to a hub, or link a private DNS zone, using this."
+  value       = azurerm_virtual_network.gateway.id
 }
 
 output "subnet_ids" {
-  description = "Subnet resource IDs in use, whether created here or supplied."
+  description = "Subnet resource IDs, keyed by purpose."
   value       = local.subnet_ids
 }
 
@@ -29,18 +29,23 @@ output "identity" {
 }
 
 output "key_vault_id" {
-  description = "Resource ID of the Key Vault holding subscription keys, whether created here or supplied."
-  value       = local.key_vault_id
+  description = "Resource ID of the Key Vault holding subscription keys."
+  value       = azurerm_key_vault.platform.id
 }
 
 output "key_vault_uri" {
-  description = "Vault URI, or null when an existing vault was supplied by ID."
-  value       = local.key_vault_uri
+  description = "Vault URI. Reachable only from a network that resolves it to the private endpoint."
+  value       = azurerm_key_vault.platform.vault_uri
+}
+
+output "key_vault_private_endpoint_ip" {
+  description = "Private IP of the Key Vault's endpoint, for registering an A record in a private DNS zone the module does not own."
+  value       = try(azurerm_private_endpoint.key_vault["key_vault"].private_service_connection[0].private_ip_address, null)
 }
 
 output "log_analytics_workspace_id" {
-  description = "Resource ID of the Log Analytics workspace in use, whether created here or supplied."
-  value       = local.log_analytics_workspace_id
+  description = "Resource ID of the Log Analytics workspace."
+  value       = azurerm_log_analytics_workspace.platform.id
 }
 
 output "application_insights_id" {

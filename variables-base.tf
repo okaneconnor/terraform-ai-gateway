@@ -1,10 +1,9 @@
 variable "address_space" {
-  description = "CIDR for the virtual network the module creates. Required unless existing_subnet_ids is set. A /22 or larger is recommended."
+  description = "CIDR for the virtual network. A /22 or larger lets the module derive both subnet prefixes; anything smaller needs subnet_prefixes set explicitly."
   type        = string
-  default     = null
 
   validation {
-    condition     = var.address_space == null || can(cidrhost(var.address_space, 0))
+    condition     = can(cidrhost(var.address_space, 0))
     error_message = "address_space must be a valid CIDR block, for example 10.60.0.0/22."
   }
 }
@@ -26,15 +25,6 @@ variable "subnet_prefixes" {
     condition     = var.subnet_prefixes.private_endpoints == null || can(cidrhost(var.subnet_prefixes.private_endpoints, 0))
     error_message = "subnet_prefixes.private_endpoints must be a valid CIDR block when set, for example 10.60.1.0/26."
   }
-}
-
-variable "existing_subnet_ids" {
-  description = "Resource IDs of existing subnets to use instead of creating a virtual network. Supply both, or neither."
-  type = object({
-    apim              = string
-    private_endpoints = string
-  })
-  default = null
 }
 
 variable "apim_nsg_baseline_rules" {
@@ -144,30 +134,13 @@ variable "routes" {
   default = {}
 }
 
-variable "existing_identity" {
-  description = "An existing user-assigned managed identity for the gateway to run as. When null the module creates one. All three attributes are required together."
-  type = object({
-    id           = string
-    principal_id = string
-    client_id    = string
-  })
-  default = null
-}
-
-variable "existing_key_vault_id" {
-  description = "Resource ID of an existing Key Vault for subscription-key storage. When null the module creates one."
-  type        = string
-  default     = null
-}
-
 variable "key_vault" {
   description = <<-EOT
     Settings for the Key Vault the module creates.
 
     The vault is always private: public network access is disabled and the firewall
     denies by default, so it is reachable only through its private endpoint from
-    inside the network. There is no option to expose it publicly. A consumer who
-    needs a differently-shaped vault supplies one with existing_key_vault_id.
+    inside the network. There is no option to expose it publicly.
 
     Private access only works once the vault hostname resolves to the endpoint,
     which needs a privatelink.vaultcore.azure.net zone linked to the network doing
@@ -214,22 +187,6 @@ variable "key_vault_grant_deployer_secrets_officer" {
   description = "Grant the principal running Terraform Key Vault Secrets Officer on the vault. Required for the module to write API Management subscription keys into it, because role-based access control grants no data-plane access implicitly. Set false only when that role is granted out of band."
   type        = bool
   default     = true
-}
-
-variable "existing_log_analytics_workspace_id" {
-  description = "Resource ID of an existing Log Analytics workspace. When null the module creates one. Application Insights is always workspace-based and needs one either way."
-  type        = string
-  default     = null
-}
-
-variable "existing_application_insights" {
-  description = "An existing Application Insights component for the API Management logger to report to. When null the module creates one. All three attributes are required together."
-  type = object({
-    id                  = string
-    instrumentation_key = string
-    connection_string   = string
-  })
-  default = null
 }
 
 variable "log_analytics" {

@@ -1,5 +1,4 @@
 resource "azurerm_key_vault" "platform" {
-  for_each            = local.create_key_vault ? { platform = {} } : {}
   name                = local.names.key_vault
   resource_group_name = local.resource_group_name
   location            = var.location
@@ -30,16 +29,17 @@ resource "azurerm_key_vault" "platform" {
 }
 
 resource "azurerm_private_endpoint" "key_vault" {
-  for_each            = local.key_vault_private_endpoint ? { key_vault = {} } : {}
+  for_each = var.key_vault.create_private_endpoint ? { key_vault = {} } : {}
+
   name                = local.names.key_vault_private_endpoint
   resource_group_name = local.resource_group_name
   location            = var.location
-  subnet_id           = local.subnet_ids.private_endpoints
+  subnet_id           = azurerm_subnet.private_endpoints.id
   tags                = var.tags
 
   private_service_connection {
     name                           = "psc-kv"
-    private_connection_resource_id = azurerm_key_vault.platform["platform"].id
+    private_connection_resource_id = azurerm_key_vault.platform.id
     subresource_names              = ["vault"]
     is_manual_connection           = false
   }
@@ -55,37 +55,34 @@ resource "azurerm_private_endpoint" "key_vault" {
 
 # principal_type avoids a transient "principal not found" error for a new identity.
 resource "azurerm_role_assignment" "gateway_secrets_officer" {
-  for_each = local.create_key_vault ? { gateway = {} } : {}
-
-  scope                = azurerm_key_vault.platform["platform"].id
+  scope                = azurerm_key_vault.platform.id
   role_definition_name = "Key Vault Secrets Officer"
   principal_id         = local.identity.principal_id
   principal_type       = "ServicePrincipal"
 }
 
 resource "azurerm_role_assignment" "key_vault_secrets_officers" {
-  for_each = local.create_key_vault ? toset(local.key_vault_secrets_officers) : toset([])
+  for_each = toset(local.key_vault_secrets_officers)
 
-  scope                = azurerm_key_vault.platform["platform"].id
+  scope                = azurerm_key_vault.platform.id
   role_definition_name = "Key Vault Secrets Officer"
   principal_id         = each.value
 }
 
 resource "azurerm_role_assignment" "key_vault_secrets_users" {
-  for_each = local.create_key_vault ? toset(var.key_vault_secrets_user_principal_ids) : toset([])
+  for_each = toset(var.key_vault_secrets_user_principal_ids)
 
-  scope                = azurerm_key_vault.platform["platform"].id
+  scope                = azurerm_key_vault.platform.id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = each.value
 }
 
-
 # Seeing the vault and enumerating secret names is a separate role from reading a
 # value. Operators need this to find a secret at all; it exposes no secret data.
 resource "azurerm_role_assignment" "key_vault_readers" {
-  for_each = local.create_key_vault ? toset(var.key_vault_reader_principal_ids) : toset([])
+  for_each = toset(var.key_vault_reader_principal_ids)
 
-  scope                = azurerm_key_vault.platform["platform"].id
+  scope                = azurerm_key_vault.platform.id
   role_definition_name = "Key Vault Reader"
   principal_id         = each.value
 }

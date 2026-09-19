@@ -1,5 +1,4 @@
 resource "azurerm_network_security_group" "apim" {
-  for_each            = local.create_network ? { apim = {} } : {}
   name                = local.names.apim_nsg
   resource_group_name = local.resource_group_name
   location            = var.location
@@ -7,11 +6,11 @@ resource "azurerm_network_security_group" "apim" {
 }
 
 resource "azurerm_network_security_rule" "apim" {
-  for_each = local.create_network ? local.apim_nsg_rules : {}
+  for_each = local.apim_nsg_rules
 
   name                        = each.key
   resource_group_name         = local.resource_group_name
-  network_security_group_name = azurerm_network_security_group.apim["apim"].name
+  network_security_group_name = azurerm_network_security_group.apim.name
 
   priority                     = each.value.priority
   direction                    = each.value.direction
@@ -29,13 +28,12 @@ resource "azurerm_network_security_rule" "apim" {
 }
 
 resource "azurerm_subnet_network_security_group_association" "apim" {
-  for_each                  = local.create_network ? { apim = {} } : {}
-  subnet_id                 = azurerm_subnet.apim["apim"].id
-  network_security_group_id = azurerm_network_security_group.apim["apim"].id
+  subnet_id                 = azurerm_subnet.apim.id
+  network_security_group_id = azurerm_network_security_group.apim.id
 }
 
 resource "azurerm_network_security_group" "private_endpoints" {
-  for_each            = local.create_private_endpoint_nsg ? { private_endpoints = {} } : {}
+  for_each            = length(var.private_endpoint_nsg_rules) > 0 ? { private_endpoints = {} } : {}
   name                = local.names.private_endpoint_nsg
   resource_group_name = local.resource_group_name
   location            = var.location
@@ -43,7 +41,7 @@ resource "azurerm_network_security_group" "private_endpoints" {
 }
 
 resource "azurerm_network_security_rule" "private_endpoints" {
-  for_each = local.create_private_endpoint_nsg ? var.private_endpoint_nsg_rules : {}
+  for_each = var.private_endpoint_nsg_rules
 
   name                        = each.key
   resource_group_name         = local.resource_group_name
@@ -65,13 +63,13 @@ resource "azurerm_network_security_rule" "private_endpoints" {
 }
 
 resource "azurerm_subnet_network_security_group_association" "private_endpoints" {
-  for_each                  = local.create_private_endpoint_nsg ? { private_endpoints = {} } : {}
-  subnet_id                 = azurerm_subnet.private_endpoints["private_endpoints"].id
+  for_each                  = length(var.private_endpoint_nsg_rules) > 0 ? { private_endpoints = {} } : {}
+  subnet_id                 = azurerm_subnet.private_endpoints.id
   network_security_group_id = azurerm_network_security_group.private_endpoints["private_endpoints"].id
 }
 
 resource "azurerm_route_table" "apim" {
-  for_each            = local.create_route_table ? { apim = {} } : {}
+  for_each            = length(var.routes) > 0 ? { apim = {} } : {}
   name                = local.names.route_table
   resource_group_name = local.resource_group_name
   location            = var.location
@@ -79,7 +77,7 @@ resource "azurerm_route_table" "apim" {
 }
 
 resource "azurerm_route" "apim" {
-  for_each = local.create_route_table ? var.routes : {}
+  for_each = var.routes
 
   name                   = each.key
   resource_group_name    = local.resource_group_name
@@ -90,7 +88,7 @@ resource "azurerm_route" "apim" {
 }
 
 resource "azurerm_subnet_route_table_association" "apim" {
-  for_each       = local.create_route_table ? { apim = {} } : {}
-  subnet_id      = azurerm_subnet.apim["apim"].id
+  for_each       = length(var.routes) > 0 ? { apim = {} } : {}
+  subnet_id      = azurerm_subnet.apim.id
   route_table_id = azurerm_route_table.apim["apim"].id
 }
