@@ -11,17 +11,47 @@ variable "apim" {
     not this module.
   EOT
   type = object({
-    sku_name             = optional(string, "Developer_1")
-    virtual_network_type = optional(string, "Internal")
-    publisher_name       = string
-    publisher_email      = string
-    zones                = optional(list(string))
+    sku_name                  = optional(string, "Developer_1")
+    virtual_network_type      = optional(string, "Internal")
+    publisher_name            = string
+    publisher_email           = string
+    notification_sender_email = optional(string)
+    zones                     = optional(list(string))
+
+    # A gateway injected into a network still needs a public address for outbound
+    # traffic and the management endpoint. Left to Azure it is dynamic and changes on
+    # infrastructure updates, which breaks any firewall downstream that allow-listed
+    # it. Creating one keeps it stable.
+    create_public_ip       = optional(bool, true)
+    public_ip_domain_label = optional(string)
+
+    # Off unless a consumer has a reason: these exist for old clients that cannot
+    # negotiate anything better.
+    enable_weak_tls_ciphers = optional(bool, false)
   })
 
   validation {
     condition     = contains(["None", "Internal", "External"], var.apim.virtual_network_type)
     error_message = "apim.virtual_network_type must be one of: None, Internal, External."
   }
+}
+
+variable "apim_gateway_hostnames" {
+  description = <<-EOT
+    Custom hostnames for the gateway, replacing the default *.azure-api.net. Each
+    needs a certificate: supply key_vault_secret_id pointing at a certificate in a
+    vault the gateway's identity can read.
+
+    Empty means the default hostname, which is fine for development and wrong for
+    anything a team will call.
+  EOT
+  type = list(object({
+    host_name                    = string
+    key_vault_secret_id          = string
+    negotiate_client_certificate = optional(bool, false)
+    default_ssl_binding          = optional(bool, true)
+  }))
+  default = []
 }
 
 variable "apim_diagnostic_log_categories" {

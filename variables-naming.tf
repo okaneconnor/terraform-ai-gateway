@@ -56,6 +56,7 @@ variable "custom_names" {
     content_safety                  = optional(string)
     content_safety_private_endpoint = optional(string)
     apim                            = optional(string)
+    apim_public_ip                  = optional(string)
   })
   default = {}
 }

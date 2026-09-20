@@ -61,6 +61,7 @@ locals {
     content_safety                  = coalesce(var.custom_names.content_safety, "cs-${local.name_base}")
     content_safety_private_endpoint = coalesce(var.custom_names.content_safety_private_endpoint, "pep-cs-${local.name_base}")
     apim                            = coalesce(var.custom_names.apim, "apim-${local.name_base}")
+    apim_public_ip                  = coalesce(var.custom_names.apim_public_ip, "pip-apim-${local.name_base}")
   }
 
   # Azure length limits that a long name_prefix, environment or instance can breach.

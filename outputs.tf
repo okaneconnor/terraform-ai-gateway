@@ -92,3 +92,8 @@ output "health_url" {
   description = "The unauthenticated health endpoint."
   value       = "${azurerm_api_management.gateway.gateway_url}/${var.health_api_path}"
 }
+
+output "apim_public_ip" {
+  description = "The gateway's outbound public address. Stable, so a downstream firewall can allow-list it."
+  value       = try(azurerm_public_ip.apim["apim"].ip_address, null)
+}
