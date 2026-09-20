@@ -1,0 +1,6 @@
+<fragment>
+    <set-variable name="consumer-subscription" value="@(context.Subscription?.Id ?? &quot;anonymous&quot;)" />
+    <set-variable name="consumer-product" value="@(context.Product?.Id ?? &quot;none&quot;)" />
+    <set-variable name="caller-ip" value="@(context.Request.IpAddress)" />
+    <set-variable name="apim-environment" value="${env}" />
+</fragment>

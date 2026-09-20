@@ -1,0 +1,9 @@
+<fragment>
+    <llm-emit-token-metric namespace="ai-gateway">
+        <dimension name="Subscription Name" value="@(context.Subscription.Name)" />
+        <dimension name="Application" value="@((string)context.Variables[&quot;application&quot;])" />
+        <dimension name="Team" value="@((string)context.Variables[&quot;team&quot;])" />
+        <dimension name="API ID" />
+        <dimension name="Model" value="@((string)context.Variables[&quot;requested-model&quot;])" />
+    </llm-emit-token-metric>
+</fragment>

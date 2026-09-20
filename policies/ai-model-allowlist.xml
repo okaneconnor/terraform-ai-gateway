@@ -1,0 +1,19 @@
+<fragment>
+    <choose>
+        <when condition="@{
+            var allowed = ((string)context.Variables[&quot;allowedModels&quot;]).Split(',');
+            return !allowed.Contains((string)context.Variables[&quot;requested-model&quot;]);
+        }">
+            <return-response>
+                <set-status code="403" reason="Forbidden" />
+                <set-header name="Content-Type" exists-action="override">
+                    <value>application/json</value>
+                </set-header>
+                <set-header name="x-correlation-id" exists-action="override">
+                    <value>@(context.RequestId.ToString())</value>
+                </set-header>
+                <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;The requested model is not permitted for your subscription.&quot;), new JProperty(&quot;type&quot;, &quot;permission_error&quot;), new JProperty(&quot;code&quot;, &quot;model_not_permitted&quot;)))).ToString())</set-body>
+            </return-response>
+        </when>
+    </choose>
+</fragment>

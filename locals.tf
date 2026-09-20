@@ -36,6 +36,43 @@ locals {
     var.key_vault_grant_deployer_secrets_officer ? [data.azurerm_client_config.current.object_id] : [],
   ))
 
+  ai_services = {
+    id               = azurerm_cognitive_account.ai_services.id
+    name             = azurerm_cognitive_account.ai_services.name
+    endpoint         = trimsuffix(azurerm_cognitive_account.ai_services.endpoint, "/")
+    custom_subdomain = azurerm_cognitive_account.ai_services.custom_subdomain_name
+  }
+
+  content_safety_endpoint = var.enable_content_safety ? trimsuffix(azurerm_cognitive_account.content_safety["content_safety"].endpoint, "/") : null
+
+  apim = {
+    id          = azurerm_api_management.gateway.id
+    name        = azurerm_api_management.gateway.name
+    gateway_url = azurerm_api_management.gateway.gateway_url
+  }
+
+  policy_fragments = {
+    ai-model-allowlist  = file("${path.module}/policies/ai-model-allowlist.xml")
+    ai-error-handling   = file("${path.module}/policies/ai-error-handling.xml")
+    ai-header-scrub     = file("${path.module}/policies/ai-header-scrub.xml")
+    ai-token-metrics    = file("${path.module}/policies/ai-token-metrics.xml")
+    ai-document-metrics = file("${path.module}/policies/ai-document-metrics.xml")
+
+    ai-auth-entra-jwt = templatefile("${path.module}/policies/ai-auth-entra-jwt.xml", {
+      tenant_id      = coalesce(var.jwt.tenant_id, data.azurerm_client_config.current.tenant_id)
+      audiences      = var.jwt.audiences
+      required_roles = join(", ", [for r in var.jwt.required_roles : "&quot;${r}&quot;"])
+    })
+
+    ai-observability = templatefile("${path.module}/policies/ai-observability.xml", {
+      env = coalesce(var.environment, "default")
+    })
+
+    ai-backend-managed-identity = templatefile("${path.module}/policies/ai-backend-managed-identity.xml", {
+      uami_client_id = local.identity.client_id
+    })
+  }
+
   application_insights = {
     id                  = azurerm_application_insights.gateway.id
     instrumentation_key = azurerm_application_insights.gateway.instrumentation_key

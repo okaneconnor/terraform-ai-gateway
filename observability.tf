@@ -12,4 +12,5 @@ resource "azurerm_application_insights" "gateway" {
   location            = var.location
   workspace_id        = azurerm_log_analytics_workspace.platform.id
   application_type    = "web"
+  sampling_percentage = var.application_insights.sampling_percentage
 }

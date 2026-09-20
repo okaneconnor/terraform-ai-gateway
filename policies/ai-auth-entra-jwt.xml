@@ -1,0 +1,41 @@
+<fragment>
+    <choose>
+        <when condition="@(!context.Request.Headers.ContainsKey(&quot;Authorization&quot;))">
+            <return-response>
+                <set-status code="401" reason="Unauthorized" />
+                <set-header name="Content-Type" exists-action="override">
+                    <value>application/json</value>
+                </set-header>
+                <set-header name="x-correlation-id" exists-action="override">
+                    <value>@(context.RequestId.ToString())</value>
+                </set-header>
+                <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;No Bearer token was provided.&quot;), new JProperty(&quot;type&quot;, &quot;authentication_error&quot;), new JProperty(&quot;code&quot;, &quot;missing_token&quot;)))).ToString())</set-body>
+            </return-response>
+        </when>
+    </choose>
+    <validate-azure-ad-token tenant-id="${tenant_id}" header-name="Authorization" failed-validation-httpcode="401" failed-validation-error-message="invalid_token" output-token-variable-name="jwt">
+        <audiences>
+%{ for audience in audiences ~}
+            <audience>${audience}</audience>
+%{ endfor ~}
+        </audiences>
+    </validate-azure-ad-token>
+    <choose>
+        <when condition="@{
+            var jwt = (Jwt)context.Variables[&quot;jwt&quot;];
+            var required = new[] { ${required_roles} };
+            return !(jwt.Claims.ContainsKey(&quot;roles&quot;) &amp;&amp; required.Any(r =&gt; jwt.Claims[&quot;roles&quot;].Contains(r)));
+        }">
+            <return-response>
+                <set-status code="403" reason="Forbidden" />
+                <set-header name="Content-Type" exists-action="override">
+                    <value>application/json</value>
+                </set-header>
+                <set-header name="x-correlation-id" exists-action="override">
+                    <value>@(context.RequestId.ToString())</value>
+                </set-header>
+                <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;The token does not carry a required role.&quot;), new JProperty(&quot;type&quot;, &quot;permission_error&quot;), new JProperty(&quot;code&quot;, &quot;missing_role&quot;)))).ToString())</set-body>
+            </return-response>
+        </when>
+    </choose>
+</fragment>

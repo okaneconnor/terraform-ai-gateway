@@ -1,0 +1,5 @@
+<fragment>
+    <set-header name="Ocp-Apim-Subscription-Key" exists-action="delete" />
+    <set-header name="Authorization" exists-action="delete" />
+    <set-header name="x-internal-team" exists-action="delete" />
+</fragment>

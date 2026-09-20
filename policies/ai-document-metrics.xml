@@ -1,0 +1,16 @@
+<fragment>
+    <emit-metric name="Pages Analyzed" value="@{
+            var body = context.Response.Body?.As&lt;JObject&gt;(preserveContent: true);
+            var pages = body?[&quot;analyzeResult&quot;]?[&quot;pages&quot;] as JArray;
+            return pages != null ? (double)pages.Count : 0.0;
+        }" namespace="ai-gateway">
+        <dimension name="Subscription Name" value="@(context.Subscription.Name)" />
+        <dimension name="Application" value="@((string)context.Variables[&quot;application&quot;])" />
+        <dimension name="Team" value="@((string)context.Variables[&quot;team&quot;])" />
+        <dimension name="API ID" />
+        <dimension name="Model" value="@{
+            var parameters = context.Request.MatchedParameters;
+            return parameters.ContainsKey(&quot;modelId&quot;) ? parameters[&quot;modelId&quot;] : &quot;&quot;;
+        }" />
+    </emit-metric>
+</fragment>
