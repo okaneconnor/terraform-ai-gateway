@@ -186,7 +186,7 @@ components:
           $ref: "#/components/schemas/ErrorDetail"
 
 paths:
-  /ai/platform/v1/chat/completions:
+  /chat/completions:
     post:
       operationId: createChatCompletion
       summary: Create a chat completion

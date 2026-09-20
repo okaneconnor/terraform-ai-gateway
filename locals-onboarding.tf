@@ -2,7 +2,7 @@ locals {
   capability_catalogue = {
     "chat-completions-v1" = {
       display_name  = "Chat Completions"
-      path          = "ai/v1/chat"
+      path          = "ai/v1"
       revision      = "1"
       spec          = "chat-completions-v1.yaml"
       policy        = "api-chat-completions-v1.xml"
