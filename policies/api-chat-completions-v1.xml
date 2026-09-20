@@ -1,0 +1,55 @@
+<policies>
+    <inbound>
+        <base />
+        <include-fragment fragment-id="ai-header-scrub" />
+        <set-variable name="deployment" value="@{
+            var model = (string)context.Variables[&quot;requested-model&quot;];
+            switch (model) {
+%{ for model_name, deployment_name in model_routing ~}
+                case &quot;${model_name}&quot;: return &quot;${deployment_name}&quot;;
+%{ endfor ~}
+                default: return &quot;&quot;;
+            }
+        }" />
+        <set-backend-service backend-id="${backend_id}" />
+        <rewrite-uri template="@($&quot;/openai/deployments/{(string)context.Variables[&quot;deployment&quot;]}/chat/completions?api-version=${api_version}&quot;)" copy-unmatched-params="false" />
+        <include-fragment fragment-id="ai-backend-managed-identity" />
+        <include-fragment fragment-id="ai-token-metrics" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+        <choose>
+            <when condition="@(context.Response.StatusCode &gt;= 500)">
+                <set-header name="Content-Type" exists-action="override">
+                    <value>application/json</value>
+                </set-header>
+                <set-header name="x-correlation-id" exists-action="override">
+                    <value>@(context.RequestId.ToString())</value>
+                </set-header>
+                <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;The backend AI service returned an error.&quot;), new JProperty(&quot;type&quot;, &quot;api_error&quot;), new JProperty(&quot;code&quot;, context.Response.StatusCode == 503 ? &quot;service_unavailable&quot; : &quot;backend_error&quot;)))).ToString())</set-body>
+            </when>
+        </choose>
+    </outbound>
+    <on-error>
+        <base />
+%{ if enable_content_safety ~}
+        <choose>
+            <when condition="@(context.LastError.Source == &quot;llm-content-safety&quot; || context.LastError.Reason == &quot;ContentSafetyPolicyViolated&quot;)">
+                <return-response>
+                    <set-status code="400" reason="Content Filtered" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-header name="x-correlation-id" exists-action="override">
+                        <value>@(context.RequestId.ToString())</value>
+                    </set-header>
+                    <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;Request blocked by content safety policy.&quot;), new JProperty(&quot;type&quot;, &quot;invalid_request_error&quot;), new JProperty(&quot;code&quot;, &quot;content_filtered&quot;)))).ToString())</set-body>
+                </return-response>
+            </when>
+        </choose>
+%{ endif ~}
+    </on-error>
+</policies>

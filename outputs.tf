@@ -97,3 +97,23 @@ output "apim_public_ip" {
   description = "The gateway's public address when one was requested, otherwise null. An Internal gateway is private by default and has none."
   value       = try(azurerm_public_ip.apim["apim"].ip_address, null)
 }
+
+output "capability_api_names" {
+  description = "Published capability API names. Onboarded products are linked to these."
+  value       = keys(local.capabilities)
+}
+
+output "products" {
+  description = "API Management product id per onboarded application."
+  value       = { for k, p in azurerm_api_management_product.application : k => p.product_id }
+}
+
+output "subscriptions" {
+  description = "Subscription resource id per application-service. A team reads its key from the vault, or from this resource with listSecrets."
+  value       = { for k, s in azurerm_api_management_subscription.service : k => s.id }
+}
+
+output "subscription_secret_names" {
+  description = "Vault secret holding each service's subscription key."
+  value       = { for k, s in azurerm_key_vault_secret.subscription_key : k => s.name }
+}
