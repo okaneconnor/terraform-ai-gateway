@@ -94,6 +94,6 @@ output "health_url" {
 }
 
 output "apim_public_ip" {
-  description = "The gateway's outbound public address. Stable, so a downstream firewall can allow-list it."
+  description = "The gateway's public address when one was requested, otherwise null. An Internal gateway is private by default and has none."
   value       = try(azurerm_public_ip.apim["apim"].ip_address, null)
 }

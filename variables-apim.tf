@@ -18,11 +18,11 @@ variable "apim" {
     notification_sender_email = optional(string)
     zones                     = optional(list(string))
 
-    # A gateway injected into a network still needs a public address for outbound
-    # traffic and the management endpoint. Left to Azure it is dynamic and changes on
-    # infrastructure updates, which breaks any firewall downstream that allow-listed
-    # it. Creating one keeps it stable.
-    create_public_ip       = optional(bool, true)
+    # Off by default: an Internal gateway is meant to be fully private, and Azure
+    # handles its own outbound and management traffic without one. Turn it on when a
+    # firewall downstream needs a stable address to allow-list, or when Azure needs
+    # it, which External mode does.
+    create_public_ip       = optional(bool, false)
     public_ip_domain_label = optional(string)
 
     # Off unless a consumer has a reason: these exist for old clients that cannot
@@ -33,6 +33,11 @@ variable "apim" {
   validation {
     condition     = contains(["None", "Internal", "External"], var.apim.virtual_network_type)
     error_message = "apim.virtual_network_type must be one of: None, Internal, External."
+  }
+
+  validation {
+    condition     = var.apim.virtual_network_type != "External" || var.apim.create_public_ip
+    error_message = "apim.virtual_network_type = \"External\" requires apim.create_public_ip = true; Azure will not provision an externally-injected gateway without one."
   }
 }
 
