@@ -23,7 +23,14 @@ resource "azurerm_api_management" "gateway" {
     }
   }
 
-  depends_on = [azurerm_subnet_network_security_group_association.apim]
+  # The rules, not just the association. Azure requires the management-endpoint rule
+  # on port 3443 for a gateway in a virtual network, and without this edge Terraform
+  # is free to delete that rule first on destroy, cutting the control plane off
+  # before its own policies and APIs can be removed.
+  depends_on = [
+    azurerm_network_security_rule.apim,
+    azurerm_subnet_network_security_group_association.apim,
+  ]
 }
 
 resource "azurerm_api_management_logger" "app_insights" {
