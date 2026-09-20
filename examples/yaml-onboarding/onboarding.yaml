@@ -1,0 +1,43 @@
+# Teams add themselves here by pull request. One subscription is created per service.
+#
+# A workload identity also needs the gateway's app role granted to it. That lives in
+# your directory, not here, because assigning it needs directory permission.
+version: v1
+
+applications:
+  - application: orders
+    owner: payments-team
+
+    # Identities allowed to use this application. service-principal ids are bound
+    # into the product policy, so a token from anything else is refused even with a
+    # valid key.
+    accessType:
+      service-principal:
+        ids:
+          - REPLACE_WITH_CLIENT_SP_OBJECT_ID
+
+    # Applies across all of this application's services combined.
+    limits:
+      requestsPerMinute: 60
+      dailyTokenQuota: 50000
+
+    services:
+      - service: chat
+        capability:
+          api: chat-completions-v1
+          allowedModels:
+            - gpt-4o
+
+      - service: summariser
+        capability:
+          api: chat-completions-v1
+          allowedModels:
+            - gpt-4o
+        # Tighter than the application's shared pool.
+        limits:
+          requestsPerMinute: 10
+        # Everything else inherits; only Violence is loosened.
+        contentSafety:
+          categories:
+            violence:
+              threshold: 6
