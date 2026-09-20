@@ -189,6 +189,19 @@ variable "key_vault_grant_deployer_secrets_officer" {
   default     = true
 }
 
+variable "application_insights" {
+  description = "Application Insights settings. sampling_percentage below 100 reduces ingestion cost by dropping a proportion of telemetry, at the cost of exact per-request detail."
+  type = object({
+    sampling_percentage = optional(number, 100)
+  })
+  default = {}
+
+  validation {
+    condition     = var.application_insights.sampling_percentage > 0 && var.application_insights.sampling_percentage <= 100
+    error_message = "application_insights.sampling_percentage must be greater than 0 and at most 100."
+  }
+}
+
 variable "log_analytics" {
   description = "Settings for the Log Analytics workspace the module creates."
   type = object({
