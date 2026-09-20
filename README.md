@@ -5,6 +5,12 @@ A Terraform module for a multi-capability Azure AI gateway with per-application 
 Status: in development. The base infrastructure layer is implemented; API Management,
 capabilities and onboarding follow.
 
+## Documentation
+
+- [Deploying, end to end](docs/deploying.md) — prerequisites, deployment, onboarding a team, and what the gateway refuses
+- [The gateway](docs/gateway.md) — what a request meets, public API names, the Developer tier caveat
+- [Key Vault access](docs/key-vault-access.md) — DNS, roles, and reading a secret
+
 Licensed under the [MIT License](LICENSE).
 
 <!-- BEGIN_TF_DOCS -->
