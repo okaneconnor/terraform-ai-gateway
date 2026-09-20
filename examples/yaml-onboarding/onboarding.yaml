@@ -1,7 +1,11 @@
-# Teams add themselves here by pull request. One subscription is created per service.
+# This file lives in YOUR repository, not in the module. Application teams add
+# themselves here by raising a pull request against you, and you review and merge it.
+# One subscription is created per service.
 #
-# A workload identity also needs the gateway's app role granted to it. That lives in
-# your directory, not here, because assigning it needs directory permission.
+# A team's workload identity also needs your gateway's app role granted to it. That
+# happens in your directory rather than in this file, because assigning app roles
+# needs directory permission. Without it a call is refused with missing_role,
+# whatever this file says.
 version: v1
 
 applications:

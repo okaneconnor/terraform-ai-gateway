@@ -1,9 +1,22 @@
 # Onboarding teams from YAML
 
-The module takes a typed `applications` variable so Terraform validates it. Teams
-would rather write YAML and raise a pull request. `onboarding.tf` is the translation
-between the two, and it is the whole of it: copy this directory, point it at your own
-file, and the two stay in step.
+You consume this module from your own repository. Application teams who want to use
+your gateway raise pull requests against **your** repository, not against the module.
+
+Copy these files into yours:
+
+| File | Whose | Purpose |
+| --- | --- | --- |
+| `onboarding.yaml` | yours | what teams edit, the only file they touch |
+| `onboarding.tf` | yours | reads that YAML, maps it to the module's typed variable |
+| `main.tf` | yours | calls the module with `applications = local.applications` |
+
+The module itself ships no YAML, because a published module cannot read a file from
+your repository: `path.module` points inside the downloaded module. It takes a typed
+variable instead, which Terraform can validate.
+
+The YAML is optional. Drop these two files and write `applications` directly in HCL
+if you prefer; the module does not care which you use.
 
 ## What a team adds
 
