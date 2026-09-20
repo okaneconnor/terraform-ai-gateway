@@ -3,6 +3,12 @@ variable "name_prefix" {
   type        = string
 }
 
+variable "environment" {
+  description = "Environment token in generated names. Omit it and it drops out."
+  type        = string
+  default     = null
+}
+
 variable "location" {
   description = "Azure region."
   type        = string

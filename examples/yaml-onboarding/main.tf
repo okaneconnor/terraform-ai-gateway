@@ -2,6 +2,7 @@ module "ai_gateway" {
   source = "../.."
 
   name_prefix = var.name_prefix
+  environment = var.environment
   location    = var.location
 
   address_space = var.address_space
