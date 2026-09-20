@@ -23,6 +23,6 @@ module "ai_gateway" {
     audiences = [var.gateway_app_id]
   }
 
-  # Teams are declared in onboarding.yaml; onboarding.tf translates it.
-  applications = local.applications
+  # Teams declare themselves in onboarding.yaml; the module translates it.
+  applications_yaml = yamldecode(file("${path.module}/onboarding.yaml"))
 }

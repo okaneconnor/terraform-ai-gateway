@@ -8,6 +8,19 @@ resource "azurerm_api_management_product" "application" {
   published             = true
   subscription_required = true
   approval_required     = false
+
+  # A variable validation only sees its own variable, so these carry the typed
+  # variable's rules onto whatever arrived through applications_yaml.
+  lifecycle {
+    precondition {
+      condition     = alltrue([for svc in values(local.services) : contains(var.enabled_capabilities, svc.capability) if svc.application == each.key])
+      error_message = "Application '${each.key}' names a capability that is not in enabled_capabilities."
+    }
+    precondition {
+      condition     = length(local.applications[each.key].service_principal_ids) + length(local.applications[each.key].group_ids) > 0
+      error_message = "Application '${each.key}' grants access to no principal, so nobody could use it."
+    }
+  }
 }
 
 # Carries the application's identity binding, limits and content-safety settings.

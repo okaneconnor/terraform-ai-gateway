@@ -86,6 +86,9 @@ variable "applications" {
     ])
     error_message = "Every application must grant access to at least one principal, or nobody can use it."
   }
+
+  # The same two rules reach the YAML path through a precondition in
+  # onboarding.tf, because a variable validation can only see its own variable.
 }
 
 variable "onboarding_defaults" {
@@ -113,4 +116,36 @@ variable "onboarding_defaults" {
     }), {})
   })
   default = {}
+}
+
+variable "applications_yaml" {
+  description = <<-EOT
+    The same onboarding declaration as `applications`, in the YAML shape teams
+    prefer to edit, passed decoded:
+
+        applications_yaml = yamldecode(file("onboarding.yaml"))
+
+    The module translates it: camelCase to snake_case, the accessType shape to
+    access, lists to maps keyed by name, and selfHarm to self_harm. A key left out
+    inherits rather than overriding, exactly as in `applications`.
+
+    The YAML lives in your repository, and teams raise pull requests against you to
+    add themselves. A published module cannot read a file from a consumer's
+    repository, which is why the decoding happens on your side and the decoded value
+    is what comes in.
+
+    Set this or `applications`, not both.
+  EOT
+  type        = any
+  default     = null
+
+  validation {
+    condition     = var.applications_yaml == null || length(var.applications) == 0
+    error_message = "Set applications or applications_yaml, not both."
+  }
+
+  validation {
+    condition     = var.applications_yaml == null || can([for a in var.applications_yaml.applications : a.application])
+    error_message = "applications_yaml must decode to an object with an applications list, each entry having an application name."
+  }
 }

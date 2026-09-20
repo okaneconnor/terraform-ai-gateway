@@ -8,15 +8,22 @@ Copy these files into yours:
 | File | Whose | Purpose |
 | --- | --- | --- |
 | `onboarding.yaml` | yours | what teams edit, the only file they touch |
-| `onboarding.tf` | yours | reads that YAML, maps it to the module's typed variable |
-| `main.tf` | yours | calls the module with `applications = local.applications` |
+| `main.tf` | yours | calls the module, handing it the decoded YAML |
 
-The module itself ships no YAML, because a published module cannot read a file from
-your repository: `path.module` points inside the downloaded module. It takes a typed
-variable instead, which Terraform can validate.
+That is the whole wiring:
 
-The YAML is optional. Drop these two files and write `applications` directly in HCL
-if you prefer; the module does not care which you use.
+```hcl
+applications_yaml = yamldecode(file("${path.module}/onboarding.yaml"))
+```
+
+The module does the translation, so every consumer gets the same behaviour and a
+correction arrives with the module version rather than needing to be copied.
+
+The decoding happens on your side because a published module cannot read a file from
+your repository: `path.module` inside the module points at the downloaded copy.
+
+The YAML is optional. Pass `applications` in HCL instead if you prefer; set one or
+the other, not both.
 
 ## What a team adds
 

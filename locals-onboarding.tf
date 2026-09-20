@@ -24,8 +24,85 @@ locals {
     { key = "violence", name = "Violence" },
   ]
 
+  # The YAML spelling of a content-safety category, mapped to ours. Only selfHarm
+  # differs, but going through the map keeps an unknown key from passing silently.
+  yaml_category_keys = {
+    hate     = "hate"
+    sexual   = "sexual"
+    selfHarm = "self_harm"
+    violence = "violence"
+  }
+
+  # applications_yaml carries the shape teams edit. Translating it here rather than
+  # in the consumer's repository means every consumer gets the same behaviour, and a
+  # correction reaches them with the module version. A key absent from the YAML
+  # becomes null, so it inherits rather than overriding.
+  applications_from_yaml = var.applications_yaml == null ? {} : {
+    for app in var.applications_yaml.applications : app.application => {
+      owner = app.owner
+
+      access = {
+        service_principal_ids = try(app.accessType["service-principal"].ids, [])
+        group_ids             = try(app.accessType["aad-group"].ids, [])
+      }
+
+      limits = {
+        requests_per_minute = try(app.limits.requestsPerMinute, null)
+        requests_per_day    = try(app.limits.requestsPerDay, null)
+        tokens_per_minute   = try(app.limits.tokensPerMinute, null)
+        daily_token_quota   = try(app.limits.dailyTokenQuota, null)
+      }
+
+      alerting = {
+        enabled           = try(app.alerting.enabled, null)
+        threshold_percent = try(app.alerting.thresholdPercent, null)
+        notify_email      = try(app.alerting.notifyEmail, null)
+      }
+
+      content_safety = {
+        enabled = try(app.contentSafety.enabled, null)
+        categories = {
+          for k, v in try(app.contentSafety.categories, {}) :
+          local.yaml_category_keys[k] => { enabled = try(v.enabled, true), threshold = try(v.threshold, 4) }
+        }
+      }
+
+      services = {
+        for svc in app.services : svc.service => {
+          capability     = svc.capability.api
+          allowed_models = try(svc.capability.allowedModels, [])
+          allow_tracing  = try(svc.allowTracing, false)
+
+          limits = {
+            requests_per_minute = try(svc.limits.requestsPerMinute, null)
+            requests_per_day    = try(svc.limits.requestsPerDay, null)
+            tokens_per_minute   = try(svc.limits.tokensPerMinute, null)
+            daily_token_quota   = try(svc.limits.dailyTokenQuota, null)
+          }
+
+          alerting = {
+            enabled           = try(svc.alerting.enabled, null)
+            threshold_percent = try(svc.alerting.thresholdPercent, null)
+            notify_email      = try(svc.alerting.notifyEmail, null)
+          }
+
+          content_safety = {
+            enabled = try(svc.contentSafety.enabled, null)
+            categories = {
+              for k, v in try(svc.contentSafety.categories, {}) :
+              local.yaml_category_keys[k] => { enabled = try(v.enabled, true), threshold = try(v.threshold, 4) }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  # One shape from here on, whichever way it arrived.
+  onboarded_applications = var.applications_yaml != null ? local.applications_from_yaml : var.applications
+
   applications = {
-    for name, app in var.applications : name => {
+    for name, app in local.onboarded_applications : name => {
       owner                 = app.owner
       service_principal_ids = sort(distinct(app.access.service_principal_ids))
       group_ids             = sort(distinct(app.access.group_ids))
@@ -56,7 +133,7 @@ locals {
   }
 
   services = { for s in flatten([
-    for app_name, app in var.applications : [
+    for app_name, app in local.onboarded_applications : [
       for svc_name, svc in app.services : {
         key         = "${app_name}-${svc_name}"
         application = app_name
@@ -105,7 +182,7 @@ locals {
   # One link per application and capability: a product grants only what its services
   # actually use.
   product_apis = { for pair in flatten([
-    for app_name, app in var.applications : [
+    for app_name, app in local.onboarded_applications : [
       for capability in distinct([for svc in values(app.services) : svc.capability]) : {
         key         = "${app_name}-${capability}"
         application = app_name
