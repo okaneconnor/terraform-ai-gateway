@@ -114,6 +114,6 @@ output "subscriptions" {
 }
 
 output "subscription_secret_names" {
-  description = "Vault secret holding each service's subscription key."
+  description = "Vault secret holding each service's subscription key. Empty when deliver_keys_to_key_vault is off, in which case teams read their key from the subscription with listSecrets."
   value       = { for k, s in azurerm_key_vault_secret.subscription_key : k => s.name }
 }

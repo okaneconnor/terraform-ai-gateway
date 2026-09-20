@@ -114,3 +114,24 @@ variable "onboarding_defaults" {
   })
   default = {}
 }
+
+variable "deliver_keys_to_key_vault" {
+  description = <<-EOT
+    Write each service's subscription key into the platform vault, and grant that
+    service's principals read access to that secret alone.
+
+    Requires Terraform to run somewhere the vault's private endpoint is reachable,
+    because the vault has no public access. The reference implementation runs its
+    onboarding stage on a self-hosted agent inside the network for exactly this
+    reason, while the rest of its deployment runs on hosted agents.
+
+    Turn it off when Terraform runs outside the network. Teams then read their key
+    from the subscription itself, which is an ARM call needing no network access:
+
+      az rest --method post --url "https://management.azure.com<subscription id>/listSecrets?api-version=2024-05-01"
+
+    The subscription ids are in the `subscriptions` output.
+  EOT
+  type        = bool
+  default     = true
+}

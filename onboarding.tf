@@ -46,7 +46,7 @@ resource "azurerm_api_management_subscription" "service" {
 }
 
 resource "azurerm_key_vault_secret" "subscription_key" {
-  for_each = local.services
+  for_each = var.deliver_keys_to_key_vault ? local.services : {}
 
   name         = "apim-subscription-${each.key}"
   value        = azurerm_api_management_subscription.service[each.key].primary_key
@@ -59,7 +59,7 @@ resource "azurerm_key_vault_secret" "subscription_key" {
 # Scoped to the one secret rather than the vault: a gateway onboards many teams, and
 # vault-wide read would let any of them read another's key.
 resource "azurerm_role_assignment" "service_secret_reader" {
-  for_each = local.service_secret_readers
+  for_each = var.deliver_keys_to_key_vault ? local.service_secret_readers : {}
 
   scope                = azurerm_key_vault_secret.subscription_key[each.value.service_key].resource_versionless_id
   role_definition_name = "Key Vault Secrets User"
