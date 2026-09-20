@@ -9,6 +9,13 @@ variable "apim" {
 
     A Developer or Premium instance takes 30 to 45 minutes to create. That is Azure,
     not this module.
+
+    Developer_1 carries no SLA. Azure takes its management endpoint down during
+    platform upgrades, and while it is down Terraform cannot create, change or delete
+    anything inside the gateway: policies, fragments, APIs and backends all fail with
+    "Failed to connect to Management endpoint Port 3443". Applies hang, and a destroy
+    can leave the instance half-removed. Fine for trying the module out; use a tier
+    with an SLA for anything a team depends on.
   EOT
   type = object({
     sku_name                  = optional(string, "Developer_1")
