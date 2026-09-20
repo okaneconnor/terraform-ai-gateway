@@ -45,8 +45,11 @@ resource "azurerm_api_management_subscription" "service" {
   allow_tracing       = each.value.allow_tracing
 }
 
+# The vault is private, so this needs Terraform to run where its private endpoint is
+# reachable. The reference runs its onboarding stage, and only that stage, on a
+# self-hosted agent inside the network for exactly this reason.
 resource "azurerm_key_vault_secret" "subscription_key" {
-  for_each = var.deliver_keys_to_key_vault ? local.services : {}
+  for_each = local.services
 
   name         = "apim-subscription-${each.key}"
   value        = azurerm_api_management_subscription.service[each.key].primary_key
@@ -59,7 +62,7 @@ resource "azurerm_key_vault_secret" "subscription_key" {
 # Scoped to the one secret rather than the vault: a gateway onboards many teams, and
 # vault-wide read would let any of them read another's key.
 resource "azurerm_role_assignment" "service_secret_reader" {
-  for_each = var.deliver_keys_to_key_vault ? local.service_secret_readers : {}
+  for_each = local.service_secret_readers
 
   scope                = azurerm_key_vault_secret.subscription_key[each.value.service_key].resource_versionless_id
   role_definition_name = "Key Vault Secrets User"

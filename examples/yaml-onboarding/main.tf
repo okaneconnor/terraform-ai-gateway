@@ -25,7 +25,4 @@ module "ai_gateway" {
 
   # Teams are declared in onboarding.yaml; onboarding.tf translates it.
   applications = local.applications
-
-  # Off when Terraform runs outside the network, since the vault is private.
-  deliver_keys_to_key_vault = var.deliver_keys_to_key_vault
 }

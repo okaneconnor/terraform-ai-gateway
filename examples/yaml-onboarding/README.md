@@ -45,14 +45,11 @@ else.
 
 ## Keys
 
-With `deliver_keys_to_key_vault` on, each key is written to the platform vault and the
-team's principals are granted read on that secret alone, not the vault. That needs
-Terraform to run inside the network, because the vault has no public access.
+Each subscription key is written to the platform vault, and the team's principals are
+granted read on that secret alone, not the vault. A gateway onboards many teams, and
+vault-wide read would let any of them read another's key.
 
-With it off, teams read their key from the subscription instead:
-
-```bash
-az rest --method post \
-  --url "https://management.azure.com<subscription id>/listSecrets?api-version=2024-05-01" \
-  --query primaryKey -o tsv
-```
+The vault is private, so Terraform has to run somewhere its private endpoint is
+reachable. The reference runs its onboarding stage, and only that stage, on a
+self-hosted agent inside the network while everything else runs on hosted agents. Do
+the same, or run the whole thing on-network.
