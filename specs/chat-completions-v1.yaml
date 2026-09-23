@@ -1,0 +1,369 @@
+openapi: "3.1.0"
+
+info:
+  title: Shared Chat Completions
+  version: "1.0.0"
+  description: >
+    Chat completions through the AI Gateway. Every request must carry a valid
+    Entra token holding one of the gateway's required app roles, and the
+    subscription key issued to the calling service.
+
+
+security:
+  - EntraBearer: []
+    ApimSubscriptionKey: []
+
+components:
+  securitySchemes:
+    EntraBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Entra v2.0 JWT issued by the CNP tenant. Callers request a token
+        for api://<client-id>/.default using client credentials; the issued
+        token carries aud: <client-id-GUID> and iss: https://login.microsoftonline.com/<tenant-id>/v2.0.
+        Must carry the AI.Gateway.Standard app role.
+        Callers must be CNP tenant managed identities or service principals.
+        No interactive or delegated user flow is supported.
+    ApimSubscriptionKey:
+      type: apiKey
+      in: header
+      name: Ocp-Apim-Subscription-Key
+      description: >
+        APIM subscription key for the team product subscription
+        (e.g. ai-sub-probate-case-summary-prod).
+
+  schemas:
+    ChatMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [system, user, assistant]
+        content:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+
+    ChatCompletionRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model:
+          type: string
+          description: >
+            Canonical model name. APIM maps this to the backend deployment.
+            On a shared destination, must be a model on the application product's allow-list.
+            BYO destinations forward the caller's model to the team-owned account.
+          example: gpt-4o-mini
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+          minItems: 1
+        stream:
+          type: boolean
+          default: false
+          description: >
+            Not supported in v1. If true, the gateway returns
+            400 / streaming_not_supported.
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 1
+        max_completion_tokens:
+          type: integer
+          minimum: 1
+        max_tokens:
+          type: integer
+          minimum: 1
+          deprecated: true
+          description: Deprecated. Use max_completion_tokens instead.
+        top_p:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 1
+        frequency_penalty:
+          type: number
+          minimum: -2
+          maximum: 2
+          default: 0
+        presence_penalty:
+          type: number
+          minimum: -2
+          maximum: 2
+          default: 0
+        stop:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        n:
+          type: integer
+          minimum: 1
+          default: 1
+        user:
+          type: string
+          description: >
+            Caller-supplied identifier. Included in gateway telemetry logs.
+
+    ChatCompletionMessage:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [assistant]
+        content:
+          type: string
+
+    ChatCompletionChoice:
+      type: object
+      properties:
+        index:
+          type: integer
+        message:
+          $ref: "#/components/schemas/ChatCompletionMessage"
+        finish_reason:
+          type: string
+          enum: [stop, length, content_filter, tool_calls]
+
+    ChatCompletionUsage:
+      type: object
+      properties:
+        prompt_tokens:
+          type: integer
+        completion_tokens:
+          type: integer
+        total_tokens:
+          type: integer
+
+    ChatCompletionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          enum: [chat.completion]
+        created:
+          type: integer
+        model:
+          type: string
+        choices:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatCompletionChoice"
+        usage:
+          $ref: "#/components/schemas/ChatCompletionUsage"
+
+    ErrorDetail:
+      type: object
+      properties:
+        message:
+          type: string
+        type:
+          type: string
+          enum:
+            - invalid_request_error
+            - authentication_error
+            - permission_error
+            - rate_limit_error
+            - api_error
+        code:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+
+paths:
+  /chat/completions:
+    post:
+      operationId: createChatCompletion
+      summary: Create a chat completion
+      description: >
+        Generates a model response for the given conversation.
+        Supports non-streaming (JSON) responses only. Streaming is not
+        supported in v1 — sending stream: true returns 400 streaming_not_supported.
+        The model field must be a canonical model name from the platform
+        approved list. APIM handles routing, token limits, and telemetry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatCompletionRequest"
+            examples:
+              basic:
+                summary: Basic request
+                value:
+                  model: gpt-4o-mini
+                  messages:
+                    - role: user
+                      content: Summarise this document
+                  temperature: 0.2
+      responses:
+        "200":
+          description: Successful completion.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatCompletionResponse"
+              example:
+                id: chatcmpl-abc123
+                object: chat.completion
+                created: 1720000000
+                model: gpt-4o-mini
+                choices:
+                  - index: 0
+                    message:
+                      role: assistant
+                      content: The document discusses...
+                    finish_reason: stop
+                usage:
+                  prompt_tokens: 25
+                  completion_tokens: 40
+                  total_tokens: 65
+        "400":
+          description: Invalid request body, missing required field, or streaming requested.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalid_request:
+                  value:
+                    error:
+                      message: "messages is required."
+                      type: invalid_request_error
+                      code: invalid_request
+                streaming_not_supported:
+                  value:
+                    error:
+                      message: "Streaming is not supported in v1. Remove stream: true from your request."
+                      type: invalid_request_error
+                      code: streaming_not_supported
+        "401":
+          description: >
+            Authentication failed. Missing or invalid Entra token, or
+            missing/invalid APIM subscription key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missing_token:
+                  value:
+                    error:
+                      message: "No Bearer token was provided."
+                      type: authentication_error
+                      code: missing_token
+                invalid_token:
+                  value:
+                    error:
+                      message: "The provided token is invalid or has expired."
+                      type: authentication_error
+                      code: invalid_token
+                missing_subscription_key:
+                  value:
+                    error:
+                      message: "No APIM subscription key was provided."
+                      type: authentication_error
+                      code: missing_subscription_key
+                invalid_subscription_key:
+                  value:
+                    error:
+                      message: "The APIM subscription key is invalid or revoked."
+                      type: authentication_error
+                      code: invalid_subscription_key
+        "403":
+          description: >
+            Authorisation failed. Token lacks the required role, or the
+            requested model is not on the application's shared-destination allow-list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missing_role:
+                  value:
+                    error:
+                      message: "The token does not carry the AI.Gateway.Standard role."
+                      type: permission_error
+                      code: missing_role
+                model_not_permitted:
+                  value:
+                    error:
+                      message: "The requested model is not permitted for your subscription."
+                      type: permission_error
+                      code: model_not_permitted
+        "429":
+          description: Rate or token quota limit exceeded.
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds to wait before retrying.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                token_quota_exceeded:
+                  value:
+                    error:
+                      message: "Monthly token quota exceeded for this subscription."
+                      type: rate_limit_error
+                      code: token_quota_exceeded
+                rate_limit_exceeded:
+                  value:
+                    error:
+                      message: "Request rate limit exceeded."
+                      type: rate_limit_error
+                      code: rate_limit_exceeded
+        "500":
+          description: Unexpected gateway-internal error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  message: "An unexpected error occurred."
+                  type: api_error
+                  code: internal_error
+        "502":
+          description: Backend AI service returned an error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  message: "The backend AI service returned an error."
+                  type: api_error
+                  code: backend_error
+        "503":
+          description: Backend AI service unavailable.
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  message: "The backend AI service is currently unavailable."
+                  type: api_error
+                  code: service_unavailable

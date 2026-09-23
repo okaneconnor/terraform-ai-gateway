@@ -39,7 +39,10 @@
             </set-header>
             <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;Content safety checks are temporarily unavailable. Retry after the interval in the Retry-After header.&quot;), new JProperty(&quot;type&quot;, &quot;api_error&quot;), new JProperty(&quot;code&quot;, &quot;content_safety_unavailable&quot;)))).ToString())</set-body>
         </when>
-        <when condition="@(context.LastError.Source == &quot;quota-by-key&quot; || context.LastError.Source == &quot;llm-token-limit&quot;)">
+        <!-- llm-token-limit reports its rejections from token-limit-process-request-handler,
+             not under its own name, so matching the policy name alone sent every token
+             limit to the 500 below and made clients retry. Both names are matched. -->
+        <when condition="@(context.LastError.Source == &quot;quota-by-key&quot; || context.LastError.Source == &quot;llm-token-limit&quot; || context.LastError.Source == &quot;token-limit-process-request-handler&quot;)">
             <set-status code="429" reason="Too Many Requests" />
             <set-header name="Retry-After" exists-action="override">
                 <value>60</value>

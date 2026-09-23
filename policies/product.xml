@@ -1,0 +1,214 @@
+<policies>
+    <inbound>
+        <base />
+        <set-variable name="application" value="${application}" />
+        <set-variable name="team" value="${team}" />
+        <set-variable name="service" value="@(context.Subscription?.Name ?? &quot;unknown&quot;)" />
+        <set-variable name="environment" value="${env}" />
+        <set-variable name="applicationCounterKey" value="@((string)context.Variables[&quot;application&quot;] + &quot;-&quot; + (string)context.Variables[&quot;environment&quot;])" />
+        <set-variable name="serviceCounterKey" value="@(context.Subscription.Id + &quot;-&quot; + (string)context.Variables[&quot;application&quot;])" />
+%{ if length(allowed_principals) > 0 ~}
+        <!-- Binds the caller to this application, so another application's key cannot reach this backend.
+             Runs before the limits so a rejected caller cannot spend this application's quota. -->
+        <choose>
+            <when condition="@{
+                var jwt = (Jwt)context.Variables[&quot;jwt&quot;];
+                var allowed = new[] { ${join(", ", [for id in allowed_principals : "&quot;${id}&quot;"])} };
+                return !allowed.Contains(jwt.Claims.GetValueOrDefault(&quot;oid&quot;, &quot;&quot;));
+            }">
+                <return-response>
+                    <set-status code="403" reason="Forbidden" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-header name="x-correlation-id" exists-action="override">
+                        <value>@(context.RequestId.ToString())</value>
+                    </set-header>
+                    <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;This identity is not onboarded to the application that owns this subscription key.&quot;), new JProperty(&quot;type&quot;, &quot;permission_error&quot;), new JProperty(&quot;code&quot;, &quot;identity_not_permitted&quot;)))).ToString())</set-body>
+                </return-response>
+            </when>
+        </choose>
+%{ endif ~}
+        <!-- Rate and quota limits run before content safety: content safety is a
+             charged external call, so traffic we are going to reject with a 429
+             must not reach it. Every check below this point is in-process and free. -->
+           <!-- Inline rather than a fragment: these numbers differ per application, and a product
+               policy is already per application, so a fragment here would be referenced by exactly
+             one policy - no reuse, which is what fragments are for. -->
+           <rate-limit-by-key calls="${requests_per_minute}" renewal-period="60" counter-key="@((string)context.Variables[&quot;applicationCounterKey&quot;])" />
+           <quota-by-key calls="${requests_per_day}" renewal-period="86400" counter-key="@((string)context.Variables[&quot;applicationCounterKey&quot;])" />
+    %{ if length([for svc in service_limits : svc if try(svc.limits.requests_per_minute, null) != null || try(svc.limits.requests_per_day, null) != null]) > 0 ~}
+        <choose>
+    %{ for svc in service_limits ~}
+    %{ if try(svc.limits.requests_per_minute, null) != null || try(svc.limits.requests_per_day, null) != null ~}
+            <when condition="@(context.Subscription != null &amp;&amp; context.Subscription.Name == &quot;${svc.subscription_name}&quot;)">
+    %{ if try(svc.limits.requests_per_minute, null) != null ~}
+            <rate-limit-by-key calls="${svc.limits.requests_per_minute}" renewal-period="60" counter-key="@((string)context.Variables[&quot;serviceCounterKey&quot;])" />
+    %{ endif ~}
+    %{ if try(svc.limits.requests_per_day, null) != null ~}
+            <quota-by-key calls="${svc.limits.requests_per_day}" renewal-period="86400" counter-key="@((string)context.Variables[&quot;serviceCounterKey&quot;])" />
+    %{ endif ~}
+            </when>
+    %{ endif ~}
+    %{ endfor ~}
+        </choose>
+    %{ endif ~}
+%{ if length(chat_subscriptions) > 0 ~}
+        <!-- A document body is binary, so it must never be parsed as JSON. -->
+        <choose>
+            <when condition="@(context.Subscription != null &amp;&amp; (${join(" || ", [for name in chat_subscriptions : "context.Subscription.Name == &quot;${name}&quot;"])}))">
+            <set-variable name="requested-model" value="@{
+                var body = context.Request.Body?.As&lt;JObject&gt;(preserveContent: true);
+                return body != null &amp;&amp; body[&quot;model&quot;] != null ? (string)body[&quot;model&quot;] : &quot;&quot;;
+            }" />
+            <choose>
+                <when condition="@{
+                    var body = context.Request.Body?.As&lt;JObject&gt;(preserveContent: true);
+                    return body == null || body[&quot;model&quot;] == null || body[&quot;messages&quot;] == null;
+                }">
+                    <return-response>
+                        <set-status code="400" reason="Bad Request" />
+                        <set-header name="Content-Type" exists-action="override">
+                            <value>application/json</value>
+                        </set-header>
+                        <set-header name="x-correlation-id" exists-action="override">
+                            <value>@(context.RequestId.ToString())</value>
+                        </set-header>
+                        <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;model and messages are required.&quot;), new JProperty(&quot;type&quot;, &quot;invalid_request_error&quot;), new JProperty(&quot;code&quot;, &quot;invalid_request&quot;)))).ToString())</set-body>
+                    </return-response>
+                </when>
+            </choose>
+            <choose>
+                <when condition="@{
+                    var body = context.Request.Body?.As&lt;JObject&gt;(preserveContent: true);
+                    return body[&quot;stream&quot;] != null &amp;&amp; (bool)body[&quot;stream&quot;];
+                }">
+                    <return-response>
+                        <set-status code="400" reason="Bad Request" />
+                        <set-header name="Content-Type" exists-action="override">
+                            <value>application/json</value>
+                        </set-header>
+                        <set-header name="x-correlation-id" exists-action="override">
+                            <value>@(context.RequestId.ToString())</value>
+                        </set-header>
+                        <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;Streaming is not supported in v1. Remove stream: true from your request.&quot;), new JProperty(&quot;type&quot;, &quot;invalid_request_error&quot;), new JProperty(&quot;code&quot;, &quot;streaming_not_supported&quot;)))).ToString())</set-body>
+                    </return-response>
+                </when>
+            </choose>
+            </when>
+        </choose>
+%{ endif ~}
+        <!-- A pair with no branch is a service reaching for a capability it was not granted. -->
+        <choose>
+%{ for cap in capabilities ~}
+            <when condition="@(context.Subscription != null &amp;&amp; context.Subscription.Name == &quot;${cap.subscription_name}&quot; &amp;&amp; (context.Api.Id == &quot;${cap.api}&quot; || context.Api.Name == &quot;${cap.api}&quot;))">
+                <set-variable name="allowedModels" value="${join(",", [for m in cap.models : m.client_name])}" />
+                <include-fragment fragment-id="ai-model-allowlist" />
+            </when>
+%{ endfor ~}
+            <otherwise>
+                <return-response>
+                    <set-status code="403" reason="Forbidden" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-header name="x-correlation-id" exists-action="override">
+                        <value>@(context.RequestId.ToString())</value>
+                    </set-header>
+                    <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;This subscription is not permitted to use this capability.&quot;), new JProperty(&quot;type&quot;, &quot;permission_error&quot;), new JProperty(&quot;code&quot;, &quot;capability_not_permitted&quot;)))).ToString())</set-body>
+                </return-response>
+            </otherwise>
+        </choose>
+        <!-- Content safety is the only charged external call in this section, so it runs
+             after every free check. Thresholds are set per service here and read by the
+                 shared fragment, so one platform fragment serves every application. -->
+%{ if enable_content_safety ~}
+            %{ if length(application_services) > 0 ~}
+        <choose>
+        %{ for svc in application_services ~}
+            <when condition="@(context.Subscription != null &amp;&amp; context.Subscription.Name == &quot;${svc.subscription_name}&quot;)">
+%{ if svc.content_safety_enabled && svc.request_shape == "chat" ~}
+                <!-- Inline rather than a fragment: an application can disable individual
+                     categories, and a policy expression can change an attribute but not
+                     remove an element - so a shared fragment could not omit one.
+                     shield-prompt stays hardcoded: jailbreak and prompt-injection
+                     detection is a platform guarantee, not a per-application opt-in.
+                     Chat-only; non-chat services do not run prompt content safety. -->
+                <llm-content-safety backend-id="content-safety" shield-prompt="true">
+%{ if length(svc.categories) > 0 ~}
+                    <categories output-type="EightSeverityLevels">
+%{ for cat in svc.categories ~}
+                        <category name="${cat.name}" threshold="${cat.threshold}" />
+%{ endfor ~}
+                    </categories>
+%{ endif ~}
+                </llm-content-safety>
+%{ endif ~}
+%{ if !(svc.content_safety_enabled && svc.request_shape == "chat") ~}
+                <set-variable name="contentSafetyDisabled" value="true" />
+%{ endif ~}
+            </when>
+%{ endfor ~}
+            <otherwise>
+%{ if application_content_safety_enabled ~}
+                <llm-content-safety backend-id="content-safety" shield-prompt="true">
+%{ if length(application_categories) > 0 ~}
+                    <categories output-type="EightSeverityLevels">
+%{ for cat in application_categories ~}
+                        <category name="${cat.name}" threshold="${cat.threshold}" />
+%{ endfor ~}
+                    </categories>
+%{ endif ~}
+                </llm-content-safety>
+%{ endif ~}
+            </otherwise>
+        </choose>
+        %{ endif ~}
+        %{ if length(application_services) == 0 && application_content_safety_enabled ~}
+            <llm-content-safety backend-id="content-safety" shield-prompt="true">
+        %{ if length(application_categories) > 0 ~}
+                <categories output-type="EightSeverityLevels">
+        %{ for cat in application_categories ~}
+                <category name="${cat.name}" threshold="${cat.threshold}" />
+        %{ endfor ~}
+                </categories>
+        %{ endif ~}
+            </llm-content-safety>
+        %{ endif ~}
+%{ endif ~}
+%{ if length(chat_subscriptions) > 0 ~}
+        <choose>
+            <when condition="@(context.Subscription != null &amp;&amp; (${join(" || ", [for name in chat_subscriptions : "context.Subscription.Name == &quot;${name}&quot;"])}))">
+            <llm-token-limit counter-key="@((string)context.Variables[&quot;applicationCounterKey&quot;])" tokens-per-minute="${tokens_per_minute}" token-quota="${daily_token_quota}" token-quota-period="Daily" estimate-prompt-tokens="true" remaining-tokens-header-name="x-ratelimit-remaining-tokens" tokens-consumed-header-name="x-ratelimit-consumed-tokens" />
+        %{ if length([for svc in service_limits : svc if try(svc.limits.tokens_per_minute, null) != null || try(svc.limits.daily_token_quota, null) != null]) > 0 ~}
+            <choose>
+    %{ for svc in service_limits ~}
+    %{ if try(svc.limits.tokens_per_minute, null) != null || try(svc.limits.daily_token_quota, null) != null ~}
+                <when condition="@(context.Subscription != null &amp;&amp; context.Subscription.Name == &quot;${svc.subscription_name}&quot;)">
+                    <llm-token-limit counter-key="@((string)context.Variables[&quot;serviceCounterKey&quot;])"
+    %{ if try(svc.limits.tokens_per_minute, null) != null ~}
+                        tokens-per-minute="${svc.limits.tokens_per_minute}"
+    %{ endif ~}
+    %{ if try(svc.limits.daily_token_quota, null) != null ~}
+                        token-quota="${svc.limits.daily_token_quota}" token-quota-period="Daily"
+    %{ endif ~}
+                        estimate-prompt-tokens="true" />
+                </when>
+    %{ endif ~}
+    %{ endfor ~}
+            </choose>
+    %{ endif ~}
+            </when>
+        </choose>
+%{ endif ~}
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>
