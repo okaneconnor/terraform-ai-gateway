@@ -5,7 +5,8 @@ variable "applications" {
     An application owns one or more services, and each service gets its own API
     Management subscription: that is the unit of attribution, revocation and rate
     limiting. Settings cascade, with a service overriding its application, which
-    overrides onboarding_defaults. A setting left unset inherits.
+    overrides onboarding_defaults. A setting left unset inherits, except that a
+    service's alerting is opt-in, as in the reference: it must set enabled itself.
 
     access lists the identities that may use the application, by object id. Both
     kinds are granted read access to the application's own subscription secrets,
@@ -114,10 +115,11 @@ variable "onboarding_defaults" {
   validation {
     condition = alltrue(concat(
       [for v in values(var.onboarding_defaults.limits) : v >= 1],
+      [for k in keys(var.onboarding_defaults.content_safety.categories) : contains(["hate", "sexual", "self_harm", "violence"], k)],
       [for c in values(var.onboarding_defaults.content_safety.categories) : c.threshold >= 0 && c.threshold <= 7],
       [var.onboarding_defaults.alerting.threshold_percent >= 1 && var.onboarding_defaults.alerting.threshold_percent <= 100],
     ))
-    error_message = "Every default limit must be at least 1, every content-safety threshold 0 to 7, and alerting.threshold_percent 1 to 100."
+    error_message = "Every default limit must be at least 1, content-safety categories must be hate, sexual, self_harm or violence with thresholds 0 to 7, and alerting.threshold_percent must be 1 to 100."
   }
 }
 
