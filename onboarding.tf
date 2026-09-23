@@ -9,16 +9,10 @@ resource "azurerm_api_management_product" "application" {
   subscription_required = true
   approval_required     = false
 
-  # A variable validation only sees its own variable, so these carry the typed
-  # variable's rules onto whatever arrived through applications_yaml.
   lifecycle {
     precondition {
-      condition     = alltrue([for svc in values(local.services) : contains(var.enabled_capabilities, svc.capability) if svc.application == each.key])
-      error_message = "Application '${each.key}' names a capability that is not in enabled_capabilities."
-    }
-    precondition {
-      condition     = length(local.applications[each.key].service_principal_ids) + length(local.applications[each.key].group_ids) > 0
-      error_message = "Application '${each.key}' grants access to no principal, so nobody could use it."
+      condition     = length(local.onboarding_problems[each.key]) == 0
+      error_message = "Application '${each.key}' cannot be onboarded:\n  - ${join("\n  - ", local.onboarding_problems[each.key])}"
     }
   }
 }

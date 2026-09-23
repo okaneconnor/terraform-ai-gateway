@@ -5,15 +5,27 @@ variable "applications" {
     An application owns one or more services, and each service gets its own API
     Management subscription: that is the unit of attribution, revocation and rate
     limiting. Settings cascade, with a service overriding its application, which
-    overrides onboarding_defaults.
+    overrides onboarding_defaults. A setting left unset inherits.
 
-    access lists the identities that may use the application. service_principal_ids
-    are bound into the product policy, so a token from any other identity is refused
-    even with a valid key. Both kinds are granted read access to their own
-    subscription secret, and to no other.
+    access lists the identities that may use the application, by object id. Both
+    kinds are granted read access to the application's own subscription secrets,
+    and to no other.
+
+    service_principal_ids are workloads: managed identities and service principals.
+    They are bound into the product policy, so a token from any other identity is
+    refused even with a valid key.
+
+    group_ids are for people calling as themselves. The binding holds object ids of
+    service principals only, so a person's call passes it only in an application
+    that lists no service principals: give people and workloads separate
+    applications.
+
+    The rules in locals-onboarding-checks.tf are checked at plan time, whichever of
+    this or applications_yaml is set.
   EOT
   type = map(object({
-    owner = string
+    owner         = string
+    allow_tracing = optional(bool)
 
     access = object({
       service_principal_ids = optional(list(string), [])
@@ -36,15 +48,15 @@ variable "applications" {
     content_safety = optional(object({
       enabled = optional(bool)
       categories = optional(map(object({
-        enabled   = optional(bool, true)
-        threshold = optional(number, 4)
+        enabled   = optional(bool)
+        threshold = optional(number)
       })), {})
     }), {})
 
     services = map(object({
       capability     = string
       allowed_models = optional(list(string), [])
-      allow_tracing  = optional(bool, false)
+      allow_tracing  = optional(bool)
 
       limits = optional(object({
         requests_per_minute = optional(number)
@@ -62,38 +74,20 @@ variable "applications" {
       content_safety = optional(object({
         enabled = optional(bool)
         categories = optional(map(object({
-          enabled   = optional(bool, true)
-          threshold = optional(number, 4)
+          enabled   = optional(bool)
+          threshold = optional(number)
         })), {})
       }), {})
     }))
   }))
   default = {}
-
-  validation {
-    condition = alltrue([
-      for app in var.applications : alltrue([
-        for svc in values(app.services) : contains(var.enabled_capabilities, svc.capability)
-      ])
-    ])
-    error_message = "Every service must name a capability listed in enabled_capabilities."
-  }
-
-  validation {
-    condition = alltrue([
-      for app in var.applications :
-      length(app.access.service_principal_ids) + length(app.access.group_ids) > 0
-    ])
-    error_message = "Every application must grant access to at least one principal, or nobody can use it."
-  }
-
-  # The same two rules reach the YAML path through a precondition in
-  # onboarding.tf, because a variable validation can only see its own variable.
 }
 
 variable "onboarding_defaults" {
   description = "Settings every application inherits unless it overrides them. Limits apply across all of an application's services combined."
   type = object({
+    allow_tracing = optional(bool, false)
+
     limits = optional(object({
       requests_per_minute = optional(number, 30)
       requests_per_day    = optional(number, 1000)
@@ -116,6 +110,15 @@ variable "onboarding_defaults" {
     }), {})
   })
   default = {}
+
+  validation {
+    condition = alltrue(concat(
+      [for v in values(var.onboarding_defaults.limits) : v >= 1],
+      [for c in values(var.onboarding_defaults.content_safety.categories) : c.threshold >= 0 && c.threshold <= 7],
+      [var.onboarding_defaults.alerting.threshold_percent >= 1 && var.onboarding_defaults.alerting.threshold_percent <= 100],
+    ))
+    error_message = "Every default limit must be at least 1, every content-safety threshold 0 to 7, and alerting.threshold_percent 1 to 100."
+  }
 }
 
 variable "applications_yaml" {

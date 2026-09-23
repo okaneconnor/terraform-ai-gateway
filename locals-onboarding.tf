@@ -25,7 +25,7 @@ locals {
   ]
 
   # The YAML spelling of a content-safety category, mapped to ours. Only selfHarm
-  # differs, but going through the map keeps an unknown key from passing silently.
+  # differs. An unknown key passes through unchanged, for the checks to report.
   yaml_category_keys = {
     hate     = "hate"
     sexual   = "sexual"
@@ -39,7 +39,8 @@ locals {
   # becomes null, so it inherits rather than overriding.
   applications_from_yaml = var.applications_yaml == null ? {} : {
     for app in var.applications_yaml.applications : app.application => {
-      owner = app.owner
+      owner         = app.owner
+      allow_tracing = try(app.allowTracing, null)
 
       access = {
         service_principal_ids = try(app.accessType["service-principal"].ids, [])
@@ -63,7 +64,7 @@ locals {
         enabled = try(app.contentSafety.enabled, null)
         categories = {
           for k, v in try(app.contentSafety.categories, {}) :
-          local.yaml_category_keys[k] => { enabled = try(v.enabled, true), threshold = try(v.threshold, 4) }
+          lookup(local.yaml_category_keys, k, k) => { enabled = try(v.enabled, null), threshold = try(v.threshold, null) }
         }
       }
 
@@ -71,7 +72,7 @@ locals {
         for svc in app.services : svc.service => {
           capability     = svc.capability.api
           allowed_models = try(svc.capability.allowedModels, [])
-          allow_tracing  = try(svc.allowTracing, false)
+          allow_tracing  = try(svc.allowTracing, null)
 
           limits = {
             requests_per_minute = try(svc.limits.requestsPerMinute, null)
@@ -90,7 +91,7 @@ locals {
             enabled = try(svc.contentSafety.enabled, null)
             categories = {
               for k, v in try(svc.contentSafety.categories, {}) :
-              local.yaml_category_keys[k] => { enabled = try(v.enabled, true), threshold = try(v.threshold, 4) }
+              lookup(local.yaml_category_keys, k, k) => { enabled = try(v.enabled, null), threshold = try(v.threshold, null) }
             }
           }
         }
@@ -103,9 +104,13 @@ locals {
 
   applications = {
     for name, app in local.onboarded_applications : name => {
-      owner                 = app.owner
-      service_principal_ids = sort(distinct(app.access.service_principal_ids))
-      group_ids             = sort(distinct(app.access.group_ids))
+      owner         = app.owner
+      allow_tracing = coalesce(app.allow_tracing, var.onboarding_defaults.allow_tracing)
+
+      # Lowercased because the product policy compares them with the token's oid claim,
+      # which is lowercase, and that comparison is case-sensitive.
+      service_principal_ids = sort(distinct([for id in app.access.service_principal_ids : lower(id)]))
+      group_ids             = sort(distinct([for id in app.access.group_ids : lower(id)]))
 
       limits = {
         requests_per_minute = coalesce(app.limits.requests_per_minute, var.onboarding_defaults.limits.requests_per_minute)
@@ -124,8 +129,8 @@ locals {
         enabled = coalesce(app.content_safety.enabled, var.onboarding_defaults.content_safety.enabled)
         categories = {
           for c in local.content_safety_categories : c.key => {
-            enabled   = try(app.content_safety.categories[c.key].enabled, try(var.onboarding_defaults.content_safety.categories[c.key].enabled, true))
-            threshold = try(app.content_safety.categories[c.key].threshold, try(var.onboarding_defaults.content_safety.categories[c.key].threshold, 4))
+            enabled   = coalesce(try(app.content_safety.categories[c.key].enabled, null), try(var.onboarding_defaults.content_safety.categories[c.key].enabled, null), true)
+            threshold = coalesce(try(app.content_safety.categories[c.key].threshold, null), try(var.onboarding_defaults.content_safety.categories[c.key].threshold, null), 4)
           }
         }
       }
@@ -145,10 +150,10 @@ locals {
         subscription_name = "${app_name}-${svc_name}"
 
         capability    = svc.capability
-        request_shape = local.capability_catalogue[svc.capability].request_shape
-        allow_tracing = svc.allow_tracing
+        request_shape = try(local.capability_catalogue[svc.capability].request_shape, null) # null for an unknown capability, which the checks report
+        allow_tracing = coalesce(svc.allow_tracing, local.applications[app_name].allow_tracing)
 
-        models = { for m in svc.allowed_models : m => lookup(local.model_routing, m, m) }
+        models = { for m in distinct(svc.allowed_models) : m => lookup(local.model_routing, m, m) }
 
         # Only what the service overrides. Anything unset draws on the application's
         # shared pool rather than getting a limit of its own.
@@ -170,8 +175,8 @@ locals {
           enabled = coalesce(svc.content_safety.enabled, local.applications[app_name].content_safety.enabled)
           categories = {
             for c in local.content_safety_categories : c.key => {
-              enabled   = try(svc.content_safety.categories[c.key].enabled, local.applications[app_name].content_safety.categories[c.key].enabled)
-              threshold = try(svc.content_safety.categories[c.key].threshold, local.applications[app_name].content_safety.categories[c.key].threshold)
+              enabled   = coalesce(try(svc.content_safety.categories[c.key].enabled, null), local.applications[app_name].content_safety.categories[c.key].enabled)
+              threshold = coalesce(try(svc.content_safety.categories[c.key].threshold, null), local.applications[app_name].content_safety.categories[c.key].threshold)
             }
           }
         }
