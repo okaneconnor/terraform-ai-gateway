@@ -192,8 +192,9 @@ Application 'orders' cannot be onboarded:
 
 ## What a team does
 
-From inside the network, because both the vault and an Internal gateway are private,
-and with the gateway's hostname resolving to its private address (see
+From inside the network, because both the vault and an Internal gateway are private
+([ways onto it](key-vault-access.md#reading-a-secret-yourself)), and with the gateway's
+hostname resolving to its private address (see
 [reaching an Internal gateway](gateway.md#reaching-an-internal-gateway)):
 
 ```bash

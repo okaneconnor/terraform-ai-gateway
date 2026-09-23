@@ -73,14 +73,22 @@ apply is usually just that.
 
 ## Reading a secret yourself
 
-A private endpoint only works from a network that resolves it. Your laptop on the
-internet does not, no matter which roles you hold. You need to be on the network:
+This is by design: the vault is private, so a laptop on the internet cannot read it,
+whatever roles it holds. You need to be on the network. Cheapest first:
 
-- a jump host, with Azure Bastion
-- a VPN, with conditional forwarders for `vault.azure.net` and `vaultcore.azure.net`
-- a build agent inside the network
+- **A temporary container shell.** An Azure Container Instance in a spare subnet of
+  `virtual_network_id`, opened with `az container exec`. Nothing to pay once it is
+  deleted.
+- **A jump host with Azure Bastion.** A small VM in the same network. Bastion
+  Developer is free in supported regions.
+- **A VPN through your hub.** Peer `virtual_network_id` to the hub and have its DNS
+  answer for `vault.azure.net` and `vaultcore.azure.net`. The portal and `az keyvault`
+  then work from your laptop.
 
-If none of that exists yet, note that a subscription key is also readable straight
-from API Management with `az rest` against the subscription's `listSecrets` action,
-which needs no network access to the vault at all. That becomes useful once the
-gateway layer exists and starts issuing keys.
+On every route the name must resolve (section 1) and you need a role (section 2). A
+team reads its own keys through the onboarding grant; operators use
+`key_vault_secrets_officer_principal_ids` or `key_vault_reader_principal_ids`.
+
+Operators can also read a key from API Management with `az rest` against the
+subscription's `listSecrets` action. That needs no path to the vault, but it does need
+rights on the API Management instance, so it is not a route for teams.
