@@ -83,6 +83,19 @@ Pass its identifier as `jwt.audiences`, matching whatever the client asks for as
 scope. If clients request `api://<client id>/.default`, the audience is
 `api://<client id>`.
 
+For people calling as themselves rather than through a workload, as the reference
+allows, the same registration also needs:
+
+4. The app role to allow users as well as applications (`allowedMemberTypes` of
+   `Application` and `User`), assigned to a group the people are in. The role then
+   appears in their own tokens. It does not work the other way round: a role assigned
+   to a group never reaches a workload's app-only token, which gets `missing_role`.
+5. A delegated scope, with Azure CLI (`04b07795-8ddb-461a-bbee-02f9e1bf7b46`)
+   pre-authorised for it, so `az account get-access-token --scope
+   api://<client id>/.default` works without a consent prompt.
+
+Unlike the rest of this guide, this path has not yet been run end to end.
+
 ## Deploying
 
 ```hcl
@@ -136,6 +149,12 @@ applications:
 That creates a product carrying their policy, a subscription per service, a key per
 subscription in the vault, and a grant letting only their identity read it.
 
+`service-principal` ids are workloads: managed identities and service principals, by
+object id. They are bound into the product policy. `aad-group` ids are for people: the
+group gets the same read grant, but the binding holds service principals only, so a
+person's call passes it only in an application that lists none. Give people and
+workloads separate applications.
+
 **Separately, grant their workload identity the gateway's app role.** This is not in
 the YAML because it happens in your directory:
 
@@ -147,36 +166,56 @@ az rest --method post \
 
 Without it every call is refused with `missing_role`, whatever the YAML says.
 
+### What the plan refuses
+
+Every entry is checked at plan time, whichever input it came through, and every problem
+is reported at once rather than one per run:
+
+- a name that is not 2 to 40 lowercase letters, digits and single hyphens
+- an application with no services, or no principal
+- an object id that is not a GUID, or is the all-zero placeholder
+- one identity granted by two owners, or listed as both a service principal and a group
+- a capability that is not enabled, a service with no models, or a model the gateway
+  does not serve
+- a limit below 1, a daily cap its per-minute limit can never reach, or services whose
+  own limits add up to more than their application's
+- alerting enabled with no email, or on a service with no daily token quota of its own
+- content safety configured while `enable_content_safety` is false, an unknown
+  category, or a threshold outside 0 to 7
+
+A typo in a model name, for instance, fails the plan rather than every call:
+
+```
+Application 'orders' cannot be onboarded:
+  - service 'chat' allows model 'gpt4o', which this gateway does not serve (serves: gpt-4o, gpt-4o-reporting)
+```
+
 ## What a team does
 
-Acquire a token, read the key, call the gateway:
+From inside the network, because both the vault and an Internal gateway are private,
+and with the gateway's hostname resolving to its private address (see
+[reaching an Internal gateway](gateway.md#reaching-an-internal-gateway)):
 
 ```bash
-TOKEN=$(curl -s -X POST "https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token" \
-  -d "client_id=<their app id>" -d "client_secret=<secret>" \
-  -d "scope=api://<gateway app id>/.default" -d "grant_type=client_credentials" \
-  | jq -r .access_token)
+az login --service-principal -u <their app id> -p <secret> --tenant <tenant> \
+  --allow-no-subscriptions        # or --identity, for a managed identity
 
 KEY=$(az keyvault secret show --vault-name <vault> \
   --name apim-subscription-orders-chat --query value -o tsv)
+TOKEN=$(az account get-access-token --scope "api://<gateway app id>/.default" \
+  --query accessToken -o tsv)
 
 curl "https://<gateway>/ai/v1/chat/completions" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Ocp-Apim-Subscription-Key: $KEY" \
   -H "Content-Type: application/json" \
-  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Say OK"}]}'
+  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Say hello"}]}'
 ```
 
-Reading the key needs network access to the vault. A team outside the network can
-read it from the subscription instead, which is an ARM call:
-
-```bash
-az rest --method post \
-  --url "https://management.azure.com<subscription id>/listSecrets?api-version=2024-05-01" \
-  --query primaryKey -o tsv
-```
-
-The subscription ids are in the `subscriptions` output.
+Each identity can read only its own application's keys; asking for another team's is
+`Forbidden`. The subscription's `listSecrets` call in Azure Resource Manager also
+returns a key, but it needs rights on the API Management instance itself, so it is an
+operator's route rather than a team's.
 
 ## What the gateway refuses
 
@@ -190,10 +229,35 @@ Verified against a live deployment with two teams onboarded from one YAML file:
 | Valid token used with another team's key | 403 `identity_not_permitted` |
 | No token | 401 `missing_token` |
 | Invalid token | 401 `invalid_token` |
+| No key | 401 `missing_subscription_key` |
+| A wrong or revoked key, including an offboarded team's | 401 `invalid_subscription_key` |
 | A path matching no API | 404 `route_not_found` |
+| `stream: true` | 400 `streaming_not_supported` |
+| No `messages` | 400 `invalid_request` |
+| A prompt attack, such as a jailbreak | 400 `content_filtered` |
+| Content at or above a category's threshold | 400 `content_filtered` |
+| Over a service's or application's request rate | 429 `rate_limit_exceeded` |
+| Over a token rate or quota | 429 `token_quota_exceeded` |
 
 The fourth is the subtlest: a leaked key alone gets nothing, because the product
 policy matches the token's object id against the identities that application declared.
+
+A service's own limits apply alongside its application's, so a tight service is
+refused while its siblings carry on.
+
+A content-safety threshold is compared with Content Safety's own score, which can be
+lower than you would guess: a direct threat of violence passed at a threshold of 2.
+To see that enforcement works at all, set a threshold of 0, which refuses even
+"Say OK".
+
+## Offboarding
+
+Remove the entry and apply. The subscriptions are deleted, so their keys stop working
+at once, and the team's secrets and read grants go with them.
+
+Onboarding the same name again later works. With purge protection on, the deleted
+secret is recovered rather than recreated, which takes about two minutes, and it
+holds the new key, not the old one.
 
 ## Things that cost time if you hit them cold
 
