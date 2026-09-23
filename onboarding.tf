@@ -44,6 +44,9 @@ resource "azurerm_api_management_product_api" "allowed" {
   api_name            = azurerm_api_management_api.capability[each.value.capability].name
   api_management_name = azurerm_api_management.gateway.name
   resource_group_name = local.resource_group_name
+
+  # See the subscription below.
+  depends_on = [azurerm_api_management_product_policy.application]
 }
 
 # One per service: the unit of attribution, revocation and rate limiting.
@@ -56,6 +59,12 @@ resource "azurerm_api_management_subscription" "service" {
   display_name        = each.value.subscription_name
   state               = "active"
   allow_tracing       = each.value.allow_tracing
+
+  # The policy carries the identity binding and limits, so it goes on before a key can
+  # call through the product, and comes off only after the keys and API links are gone.
+  # Removing it while they are still being removed races on the product's ETag and
+  # fails offboarding with a 412.
+  depends_on = [azurerm_api_management_product_policy.application]
 }
 
 # The vault is private, so this needs Terraform to run where its private endpoint is
