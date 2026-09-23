@@ -180,17 +180,17 @@
         <choose>
             <when condition="@(context.Subscription != null &amp;&amp; (${join(" || ", [for name in chat_subscriptions : "context.Subscription.Name == &quot;${name}&quot;"])}))">
             <llm-token-limit counter-key="@((string)context.Variables[&quot;applicationCounterKey&quot;])" tokens-per-minute="${tokens_per_minute}" token-quota="${daily_token_quota}" token-quota-period="Daily" estimate-prompt-tokens="true" remaining-tokens-header-name="x-ratelimit-remaining-tokens" tokens-consumed-header-name="x-ratelimit-consumed-tokens" />
-        %{ if length([for svc in service_limits : svc if try(svc.limits.tokensPerMinute, null) != null || try(svc.limits.dailyTokenQuota, null) != null]) > 0 ~}
+        %{ if length([for svc in service_limits : svc if try(svc.limits.tokens_per_minute, null) != null || try(svc.limits.daily_token_quota, null) != null]) > 0 ~}
             <choose>
     %{ for svc in service_limits ~}
-    %{ if try(svc.limits.tokensPerMinute, null) != null || try(svc.limits.dailyTokenQuota, null) != null ~}
+    %{ if try(svc.limits.tokens_per_minute, null) != null || try(svc.limits.daily_token_quota, null) != null ~}
                 <when condition="@(context.Subscription != null &amp;&amp; context.Subscription.Name == &quot;${svc.subscription_name}&quot;)">
                     <llm-token-limit counter-key="@((string)context.Variables[&quot;serviceCounterKey&quot;])"
-    %{ if try(svc.limits.tokensPerMinute, null) != null ~}
-                        tokens-per-minute="${svc.limits.tokensPerMinute}"
+    %{ if try(svc.limits.tokens_per_minute, null) != null ~}
+                        tokens-per-minute="${svc.limits.tokens_per_minute}"
     %{ endif ~}
-    %{ if try(svc.limits.dailyTokenQuota, null) != null ~}
-                        token-quota="${svc.limits.dailyTokenQuota}" token-quota-period="Daily"
+    %{ if try(svc.limits.daily_token_quota, null) != null ~}
+                        token-quota="${svc.limits.daily_token_quota}" token-quota-period="Daily"
     %{ endif ~}
                         estimate-prompt-tokens="true" />
                 </when>
