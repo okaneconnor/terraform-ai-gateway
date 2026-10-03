@@ -30,11 +30,13 @@ resource "azurerm_subnet" "apim" {
 }
 
 resource "azurerm_subnet" "private_endpoints" {
-  name                              = local.names.private_endpoint_subnet
-  resource_group_name               = local.resource_group_name
-  virtual_network_name              = azurerm_virtual_network.gateway.name
-  address_prefixes                  = [local.private_endpoint_subnet_prefix]
-  private_endpoint_network_policies = "Disabled"
+  name                 = local.names.private_endpoint_subnet
+  resource_group_name  = local.resource_group_name
+  virtual_network_name = azurerm_virtual_network.gateway.name
+  address_prefixes     = [local.private_endpoint_subnet_prefix]
+  # NSG rules on this subnet do nothing while the policy is Disabled, so supplying
+  # rules turns enforcement on.
+  private_endpoint_network_policies = length(var.private_endpoint_nsg_rules) > 0 ? "NetworkSecurityGroupEnabled" : "Disabled"
 }
 
 # Private DNS zones for the endpoints in this network are usually central and owned
