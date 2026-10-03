@@ -176,6 +176,11 @@ variable "create_private_dns_zones" {
   EOT
   type        = bool
   default     = false
+
+  validation {
+    condition     = !var.create_private_dns_zones || (length(var.key_vault.private_dns_zone_ids) == 0 && length(var.ai_services.private_dns_zone_ids) == 0)
+    error_message = "create_private_dns_zones creates the zones itself, so key_vault.private_dns_zone_ids and ai_services.private_dns_zone_ids must be empty. Use one or the other: both would put an endpoint in two zones."
+  }
 }
 
 variable "private_dns_linker_principal_ids" {
