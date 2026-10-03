@@ -165,6 +165,19 @@ variable "key_vault_reader_principal_ids" {
   default     = []
 }
 
+variable "create_private_dns_zones" {
+  description = <<-EOT
+    Create privatelink.vaultcore.azure.net and privatelink.cognitiveservices.azure.com,
+    link them to the module's network and attach them to the private endpoints.
+
+    Leave false when these zones are central and shared, which is the usual case:
+    attach yours with key_vault.private_dns_zone_ids and ai_services.private_dns_zone_ids
+    instead. Setting both for the same service puts the endpoint in two zones.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "private_dns_linker_principal_ids" {
   description = "Object IDs granted Network Contributor on the virtual network so a central private-DNS pipeline can link its zones to it. Leave empty when the module's own network is not used, or when zones are linked by other means."
   type        = list(string)
