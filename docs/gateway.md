@@ -37,6 +37,17 @@ DNS record pointing at it, or a custom hostname supplied through
 `apim_gateway_hostnames` with a certificate. Until then it is reachable only by IP
 with a `Host` header, from inside the network.
 
+Microsoft's guidance for Internal mode is to register exact host names only: an `A`
+record for each name the instance serves (`<name>.azure-api.net`, and the `portal`,
+`developer`, `management` and `scm` variants if you use them) pointing at the private
+address. Do not create a private DNS zone, or a forward lookup zone, for the
+`azure-api.net` apex. Doing so makes your zone authoritative for a domain Azure and
+other services share, and breaks their public records. See
+[DNS configuration for internal virtual network scenarios](https://learn.microsoft.com/azure/api-management/api-management-using-with-internal-vnet#dns-configuration-for-internal-virtual-network-scenarios).
+
+`create_private_dns_zones` covers the Key Vault and AI Services endpoints only. It
+does not create anything for the gateway's own host names.
+
 ## The Developer SKU has no SLA
 
 Azure takes a Developer instance's management endpoint offline during platform
