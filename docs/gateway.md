@@ -16,6 +16,30 @@ A call arrives at API Management and passes through policies in scope order.
 The health endpoint is the one exception. Its policy omits `<base />`, so it skips
 the token check entirely and answers unauthenticated.
 
+## Capabilities
+
+`enabled_capabilities` publishes APIs from the module's catalogue. Each is its own API
+with its own path, OpenAPI document and policy, and a service is onboarded to one.
+
+| Capability | Path | Takes | `allowedModels` means |
+| --- | --- | --- | --- |
+| `chat-completions-v1` | `/ai/v1` | JSON chat request | model deployments |
+| `document-intelligence-v1` | `/ai/v1/document-intelligence` | a document, analysed asynchronously | Document Intelligence model IDs |
+
+**Document Intelligence.** `POST /documentModels/{modelId}:analyze` starts an analysis
+and returns `202` with an `Operation-Location` header. The gateway rewrites that header
+to point at itself, so the backend host never reaches a caller; poll it with
+`GET /documentModels/{modelId}/analyzeResults/{resultId}`. The model is in the path, so
+the model allowlist is applied to the path, not to the body, and a document is never
+parsed. A service may only name models on `document_models` (the prebuilt models by
+default), so a custom model is added there first. Content safety and token limits are
+chat-only and do not apply; the request rate and daily limits do. A completed analysis
+emits a `Pages Analyzed` metric per subscription.
+
+The backend is the same AI Services account as chat, reached as the gateway's managed
+identity. That identity is granted `Cognitive Services User` on the account when a
+capability other than chat is enabled, because the OpenAI role does not cover it.
+
 ## Names that are public API
 
 Capability policies reference these by name, so renaming one breaks any consumer

@@ -50,6 +50,10 @@ locals {
       for k, s in local.services : s.subscription_name if s.application == name && s.request_shape == "chat"
     ])
 
+    document_subscriptions = sort([
+      for k, s in local.services : s.subscription_name if s.application == name && s.request_shape == "document"
+    ])
+
     service_limits = [
       for key in sort([for k, s in local.services : k if s.application == name && length(s.limits) > 0]) : {
         subscription_name = local.services[key].subscription_name

@@ -53,6 +53,14 @@
     %{ endfor ~}
         </choose>
     %{ endif ~}
+%{ if length(document_subscriptions) > 0 ~}
+        <!-- The model is in the path, not the body: a document body is binary and is never parsed. -->
+        <choose>
+            <when condition="@(context.Subscription != null &amp;&amp; (${join(" || ", [for name in document_subscriptions : "context.Subscription.Name == &quot;${name}&quot;"])}))">
+                <set-variable name="requested-model" value="@(context.Request.MatchedParameters.GetValueOrDefault(&quot;modelId&quot;, &quot;&quot;))" />
+            </when>
+        </choose>
+%{ endif ~}
 %{ if length(chat_subscriptions) > 0 ~}
         <!-- A document body is binary, so it must never be parsed as JSON. -->
         <choose>
