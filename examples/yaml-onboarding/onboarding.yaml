@@ -53,3 +53,8 @@ applications:
           allowedModels:
             - prebuilt-read
             - prebuilt-layout
+
+      # Audio transcription: it takes no models.
+      - service: transcripts
+        capability:
+          api: speech-to-text-fast-v1

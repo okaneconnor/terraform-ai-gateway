@@ -4,8 +4,8 @@ variable "enabled_capabilities" {
   default     = ["chat-completions-v1"]
 
   validation {
-    condition     = length(setsubtract(toset(var.enabled_capabilities), toset(["chat-completions-v1", "document-intelligence-v1"]))) == 0
-    error_message = "enabled_capabilities supports: chat-completions-v1, document-intelligence-v1."
+    condition     = length(setsubtract(toset(var.enabled_capabilities), toset(["chat-completions-v1", "document-intelligence-v1", "speech-to-text-fast-v1"]))) == 0
+    error_message = "enabled_capabilities supports: chat-completions-v1, document-intelligence-v1, speech-to-text-fast-v1."
   }
 }
 
@@ -27,4 +27,15 @@ variable "document_models" {
     "prebuilt-idDocument",
     "prebuilt-businessCard",
   ]
+}
+
+variable "speech_max_audio_bytes" {
+  description = "Largest audio upload the speech-to-text-fast-v1 capability accepts, checked against the declared Content-Length before the request reaches the backend. Microsoft's pages give different limits for fast transcription (250 to 500 MB); the default is the middle one. A chunked upload declares no length and is not checked here."
+  type        = number
+  default     = 314572800
+
+  validation {
+    condition     = var.speech_max_audio_bytes >= 1
+    error_message = "speech_max_audio_bytes must be at least 1."
+  }
 }

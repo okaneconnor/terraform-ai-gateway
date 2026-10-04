@@ -118,8 +118,12 @@
         <choose>
 %{ for cap in capabilities ~}
             <when condition="@(context.Subscription != null &amp;&amp; context.Subscription.Name == &quot;${cap.subscription_name}&quot; &amp;&amp; (context.Api.Id == &quot;${cap.api}&quot; || context.Api.Name == &quot;${cap.api}&quot;))">
+%{ if length(cap.models) > 0 ~}
                 <set-variable name="allowedModels" value="${join(",", [for m in cap.models : m.client_name])}" />
                 <include-fragment fragment-id="ai-model-allowlist" />
+%{ else ~}
+                <!-- Permitted. This capability takes no model, so there is nothing to allow-list. -->
+%{ endif ~}
             </when>
 %{ endfor ~}
             <otherwise>

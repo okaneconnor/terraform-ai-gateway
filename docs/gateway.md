@@ -25,6 +25,7 @@ with its own path, OpenAPI document and policy, and a service is onboarded to on
 | --- | --- | --- | --- |
 | `chat-completions-v1` | `/ai/v1` | JSON chat request | model deployments |
 | `document-intelligence-v1` | `/ai/v1/document-intelligence` | a document, analysed asynchronously | Document Intelligence model IDs |
+| `speech-to-text-fast-v1` | `/ai/v1/speech-to-text/fast` | an audio file, transcribed in the response | nothing: it takes no models |
 
 **Document Intelligence.** `POST /documentModels/{modelId}:analyze` starts an analysis
 and returns `202` with an `Operation-Location` header. The gateway rewrites that header
@@ -35,6 +36,16 @@ parsed. A service may only name models on `document_models` (the prebuilt models
 default), so a custom model is added there first. Content safety and token limits are
 chat-only and do not apply; the request rate and daily limits do. A completed analysis
 emits a `Pages Analyzed` metric per subscription.
+
+**Speech to text (fast).** `POST /transcriptions:transcribe` takes a multipart upload with
+an `audio` part and an optional `definition` JSON part (for example
+`{"locales":["en-GB"]}`) and returns the transcript. There is no model to choose, so a
+service names none and the model allowlist does not run; naming one is refused at plan
+time. The declared `Content-Length` is checked against `speech_max_audio_bytes` (300 MB by
+default) and anything larger is refused with `413 payload_too_large` before it reaches the
+backend. A chunked upload declares no length and is not checked, so the service's own
+limit applies to it. Content safety and token limits are chat-only; the request rate and
+daily limits apply.
 
 The backend is the same AI Services account as chat, reached as the gateway's managed
 identity. That identity is granted `Cognitive Services User` on the account when a
