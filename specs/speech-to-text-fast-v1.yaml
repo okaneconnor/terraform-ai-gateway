@@ -95,8 +95,12 @@ components:
             code:
               type: string
 
+# The API is published at .../speech-to-text/fast/transcriptions:transcribe, so its
+# one operation is the root. The colon cannot start the operation's own path: API
+# Management reads a relative path that begins "transcriptions:" as a URI scheme and
+# token validation fails. The URL a caller uses is the same either way.
 paths:
-  /transcriptions:transcribe:
+  /:
     post:
       operationId: transcribeAudio
       summary: Transcribe an audio file

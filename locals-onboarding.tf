@@ -19,8 +19,10 @@ locals {
       request_shape = "document"
     }
     "speech-to-text-fast-v1" = {
-      display_name  = "Speech to Text (Fast)"
-      path          = "ai/v1/speech-to-text/fast"
+      display_name = "Speech to Text (Fast)"
+      # The colon is in the API path, not the operation: a relative path that begins
+      # "transcriptions:" is read as a URI scheme and fails token validation.
+      path          = "ai/v1/speech-to-text/fast/transcriptions:transcribe"
       revision      = "1"
       spec          = "speech-to-text-fast-v1.yaml"
       policy        = "api-speech-to-text-fast-v1.xml"

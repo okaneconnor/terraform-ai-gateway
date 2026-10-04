@@ -31,8 +31,8 @@ run "the_api_is_published_with_its_own_path_and_policy" {
   command = plan
 
   assert {
-    condition     = azurerm_api_management_api.capability["speech-to-text-fast-v1"].path == "ai/v1/speech-to-text/fast"
-    error_message = "Speech should be published at ai/v1/speech-to-text/fast."
+    condition     = azurerm_api_management_api.capability["speech-to-text-fast-v1"].path == "ai/v1/speech-to-text/fast/transcriptions:transcribe"
+    error_message = "Speech should be published at ai/v1/speech-to-text/fast/transcriptions:transcribe, with the colon in the API path."
   }
 
   assert {
