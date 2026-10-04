@@ -74,13 +74,18 @@ locals {
       if !contains(var.enabled_capabilities, svc.capability)
     ],
     [for svc in local.application_services[name] :
-      "service '${svc.service}' allows no models: list at least one" if length(svc.models) == 0
+      "service '${svc.service}' allows no models: list at least one"
+      if contains(keys(local.served_models), coalesce(svc.request_shape, "none")) && length(svc.models) == 0
     ],
     [for svc in local.application_services[name] : [
       for model in keys(svc.models) :
-      "service '${svc.service}' allows model '${model}', which this gateway does not serve (serves: ${join(", ", sort(keys(local.model_routing)))})"
-      if !contains(keys(local.model_routing), model)
-    ]],
+      "service '${svc.service}' allows model '${model}', which this gateway does not serve (serves: ${join(", ", sort(local.served_models[svc.request_shape]))})"
+      if !contains(local.served_models[svc.request_shape], model)
+    ] if contains(keys(local.served_models), coalesce(svc.request_shape, "none"))],
+    [for svc in local.application_services[name] :
+      "service '${svc.service}' allows models, but the '${svc.capability}' capability takes none"
+      if svc.request_shape != null && !contains(keys(local.served_models), svc.request_shape) && length(svc.models) > 0
+    ],
 
     # Limits. A daily cap its per-minute limit can never reach is dead configuration.
     [for limit, value in app.limits : "limits.${limit} must be at least 1, not ${value}" if value < 1],

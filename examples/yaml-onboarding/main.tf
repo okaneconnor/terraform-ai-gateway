@@ -23,6 +23,8 @@ module "ai_gateway" {
     audiences = [var.gateway_app_id]
   }
 
+  enabled_capabilities = ["chat-completions-v1", "document-intelligence-v1"]
+
   # onboarding.yaml tunes content safety for one service, which needs it deployed.
   enable_content_safety = true
 

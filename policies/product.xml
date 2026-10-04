@@ -53,18 +53,34 @@
     %{ endfor ~}
         </choose>
     %{ endif ~}
+%{ if length(document_subscriptions) > 0 ~}
+        <!-- The model is in the path, not the body: a document body is binary and is never parsed. -->
+        <choose>
+            <when condition="@(context.Subscription != null &amp;&amp; (${join(" || ", [for name in document_subscriptions : "context.Subscription.Name == &quot;${name}&quot;"])}))">
+                <set-variable name="requested-model" value="@(context.Request.MatchedParameters.GetValueOrDefault(&quot;modelId&quot;, &quot;&quot;))" />
+            </when>
+        </choose>
+%{ endif ~}
 %{ if length(chat_subscriptions) > 0 ~}
         <!-- A document body is binary, so it must never be parsed as JSON. -->
         <choose>
-            <when condition="@(context.Subscription != null &amp;&amp; (${join(" || ", [for name in chat_subscriptions : "context.Subscription.Name == &quot;${name}&quot;"])}))">
+            <when condition="@(context.Subscription != null &amp;&amp; (${join(" || ", [for c in chat_match_conditions : "(${c})"])}))">
             <set-variable name="requested-model" value="@{
-                var body = context.Request.Body?.As&lt;JObject&gt;(preserveContent: true);
-                return body != null &amp;&amp; body[&quot;model&quot;] != null ? (string)body[&quot;model&quot;] : &quot;&quot;;
+                try {
+                    var body = context.Request.Body?.As&lt;JObject&gt;(preserveContent: true);
+                    return body != null &amp;&amp; body[&quot;model&quot;] != null ? (string)body[&quot;model&quot;] : &quot;&quot;;
+                } catch (Exception) {
+                    return &quot;&quot;;
+                }
             }" />
             <choose>
                 <when condition="@{
-                    var body = context.Request.Body?.As&lt;JObject&gt;(preserveContent: true);
-                    return body == null || body[&quot;model&quot;] == null || body[&quot;messages&quot;] == null;
+                    try {
+                        var body = context.Request.Body?.As&lt;JObject&gt;(preserveContent: true);
+                        return body == null || body[&quot;model&quot;] == null || body[&quot;messages&quot;] == null;
+                    } catch (Exception) {
+                        return true;
+                    }
                 }">
                     <return-response>
                         <set-status code="400" reason="Bad Request" />
@@ -178,7 +194,7 @@
 %{ endif ~}
 %{ if length(chat_subscriptions) > 0 ~}
         <choose>
-            <when condition="@(context.Subscription != null &amp;&amp; (${join(" || ", [for name in chat_subscriptions : "context.Subscription.Name == &quot;${name}&quot;"])}))">
+            <when condition="@(context.Subscription != null &amp;&amp; (${join(" || ", [for c in chat_match_conditions : "(${c})"])}))">
             <llm-token-limit counter-key="@((string)context.Variables[&quot;applicationCounterKey&quot;])" tokens-per-minute="${tokens_per_minute}" token-quota="${daily_token_quota}" token-quota-period="Daily" estimate-prompt-tokens="true" remaining-tokens-header-name="x-ratelimit-remaining-tokens" tokens-consumed-header-name="x-ratelimit-consumed-tokens" />
         %{ if length([for svc in service_limits : svc if try(svc.limits.tokens_per_minute, null) != null || try(svc.limits.daily_token_quota, null) != null]) > 0 ~}
             <choose>
