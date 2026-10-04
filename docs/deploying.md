@@ -50,7 +50,11 @@ it access to the network with `private_dns_linker_principal_ids` and use the
 `key_vault_private_endpoint_ip` and `ai_services_private_endpoint_ip` outputs to
 register the records.
 
-If you have neither, create them next to the module:
+If you have neither, set `create_private_dns_zones = true` and the module creates both
+zones and links them to its network. Leave it off when the zones are central, or the
+endpoint ends up in two.
+
+To manage them yourself next to the module instead:
 
 ```hcl
 resource "azurerm_private_dns_zone" "vault" {

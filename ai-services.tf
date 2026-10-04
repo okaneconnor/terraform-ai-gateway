@@ -57,10 +57,10 @@ resource "azurerm_private_endpoint" "ai_services" {
   }
 
   dynamic "private_dns_zone_group" {
-    for_each = length(var.ai_services.private_dns_zone_ids) > 0 ? [1] : []
+    for_each = length(local.ai_services_dns_zone_ids) > 0 ? [1] : []
     content {
       name                 = "default"
-      private_dns_zone_ids = var.ai_services.private_dns_zone_ids
+      private_dns_zone_ids = local.ai_services_dns_zone_ids
     }
   }
 }
@@ -104,10 +104,10 @@ resource "azurerm_private_endpoint" "content_safety" {
   }
 
   dynamic "private_dns_zone_group" {
-    for_each = length(var.ai_services.private_dns_zone_ids) > 0 ? [1] : []
+    for_each = length(local.ai_services_dns_zone_ids) > 0 ? [1] : []
     content {
       name                 = "default"
-      private_dns_zone_ids = var.ai_services.private_dns_zone_ids
+      private_dns_zone_ids = local.ai_services_dns_zone_ids
     }
   }
 }

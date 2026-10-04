@@ -103,7 +103,7 @@ variable "apim_nsg_additional_rules" {
 }
 
 variable "private_endpoint_nsg_rules" {
-  description = "Security rules for the private endpoint subnet. Empty means no network security group is attached to it."
+  description = "Security rules for the private endpoint subnet. Empty means no network security group is attached and private endpoint network policies stay disabled. Supplying any rule creates and attaches the group and enables NSG enforcement for the subnet's private endpoints; without that Azure ignores NSG rules for private endpoint traffic. Note the default rules still allow VNet-internal traffic, so add an explicit Deny to restrict it."
   # This object type is deliberately identical to apim_nsg_additional_rules above.
   # HCL has no type alias, so keep the two in step by hand if either one changes.
   type = map(object({
@@ -163,6 +163,24 @@ variable "key_vault_reader_principal_ids" {
   description = "Object IDs granted Key Vault Reader on the vault: see the vault and enumerate secret names, without access to any secret value. This is what an operator needs to find a secret before a separate role lets them read it."
   type        = list(string)
   default     = []
+}
+
+variable "create_private_dns_zones" {
+  description = <<-EOT
+    Create privatelink.vaultcore.azure.net and privatelink.cognitiveservices.azure.com,
+    link them to the module's network and attach them to the private endpoints.
+
+    Leave false when these zones are central and shared, which is the usual case:
+    attach yours with key_vault.private_dns_zone_ids and ai_services.private_dns_zone_ids
+    instead. Setting both for the same service puts the endpoint in two zones.
+  EOT
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.create_private_dns_zones || (length(var.key_vault.private_dns_zone_ids) == 0 && length(var.ai_services.private_dns_zone_ids) == 0)
+    error_message = "create_private_dns_zones creates the zones itself, so key_vault.private_dns_zone_ids and ai_services.private_dns_zone_ids must be empty. Use one or the other: both would put an endpoint in two zones."
+  }
 }
 
 variable "private_dns_linker_principal_ids" {

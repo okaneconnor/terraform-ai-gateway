@@ -43,10 +43,10 @@ resource "azurerm_private_endpoint" "key_vault" {
   }
 
   dynamic "private_dns_zone_group" {
-    for_each = length(var.key_vault.private_dns_zone_ids) > 0 ? [1] : []
+    for_each = length(local.key_vault_dns_zone_ids) > 0 ? [1] : []
     content {
       name                 = "default"
-      private_dns_zone_ids = var.key_vault.private_dns_zone_ids
+      private_dns_zone_ids = local.key_vault_dns_zone_ids
     }
   }
 }
