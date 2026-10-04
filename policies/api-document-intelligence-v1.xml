@@ -1,0 +1,83 @@
+<policies>
+    <inbound>
+        <base />
+        <include-fragment fragment-id="ai-header-scrub" />
+        <set-backend-service backend-id="${backend_id}" />
+        <!-- Dropped before the rewrite supplies ours, so it cannot end up duplicated. -->
+        <set-query-parameter name="api-version" exists-action="delete" />
+        <rewrite-uri template="@{
+            var parameters = context.Request.MatchedParameters;
+            var modelId = parameters.ContainsKey(&quot;modelId&quot;) ? parameters[&quot;modelId&quot;] : &quot;&quot;;
+            var resultId = parameters.ContainsKey(&quot;resultId&quot;) ? parameters[&quot;resultId&quot;] : null;
+            if (resultId != null) {
+                return $&quot;/documentintelligence/documentModels/{modelId}/analyzeResults/{resultId}?api-version=${api_version}&quot;;
+            }
+            return $&quot;/documentintelligence/documentModels/{modelId}:analyze?api-version=${api_version}&quot;;
+        }" copy-unmatched-params="true" />
+        <include-fragment fragment-id="ai-backend-managed-identity" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+        <!-- Pages are only known once the poll returns the finished result, not on the initial 202. -->
+        <choose>
+            <when condition="@{
+                if (context.Response.StatusCode != 200) { return false; }
+                var body = context.Response.Body?.As&lt;JObject&gt;(preserveContent: true);
+                return body != null &amp;&amp; (string)body[&quot;status&quot;] == &quot;succeeded&quot; &amp;&amp; body[&quot;analyzeResult&quot;] != null;
+            }">
+                <include-fragment fragment-id="ai-document-metrics" />
+            </when>
+        </choose>
+        <!-- The backend host must never reach the caller: point the poll URL at this gateway,
+             or drop it when it cannot be rewritten. -->
+        <choose>
+            <when condition="@(context.Response.Headers.ContainsKey(&quot;Operation-Location&quot;))">
+                <set-variable name="pollUrl" value="@{
+                    var backendLocation = context.Response.Headers.GetValueOrDefault(&quot;Operation-Location&quot;, &quot;&quot;);
+                    var marker = &quot;/documentModels/&quot;;
+                    var tailStart = backendLocation.IndexOf(marker);
+                    var originalPath = context.Request.OriginalUrl.Path;
+                    var baseEnd = originalPath.IndexOf(marker);
+                    if (tailStart &lt; 0 || baseEnd &lt; 0) {
+                        return &quot;&quot;;
+                    }
+                    var tail = backendLocation.Substring(tailStart + marker.Length);
+                    var queryStart = tail.IndexOf('?');
+                    if (queryStart &gt;= 0) {
+                        tail = tail.Substring(0, queryStart);
+                    }
+                    var basePath = originalPath.Substring(0, baseEnd);
+                    return $&quot;{context.Request.OriginalUrl.Scheme}://{context.Request.OriginalUrl.Host}{basePath}{marker}{tail}&quot;;
+                }" />
+                <choose>
+                    <when condition="@(((string)context.Variables[&quot;pollUrl&quot;]).Length &gt; 0)">
+                        <set-header name="Operation-Location" exists-action="override">
+                            <value>@((string)context.Variables[&quot;pollUrl&quot;])</value>
+                        </set-header>
+                    </when>
+                    <otherwise>
+                        <set-header name="Operation-Location" exists-action="delete" />
+                    </otherwise>
+                </choose>
+            </when>
+        </choose>
+        <set-header name="Location" exists-action="delete" />
+        <choose>
+            <when condition="@(context.Response.StatusCode &gt;= 500)">
+                <set-header name="Content-Type" exists-action="override">
+                    <value>application/json</value>
+                </set-header>
+                <set-header name="x-correlation-id" exists-action="override">
+                    <value>@(context.RequestId.ToString())</value>
+                </set-header>
+                <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;The backend AI service returned an error.&quot;), new JProperty(&quot;type&quot;, &quot;api_error&quot;), new JProperty(&quot;code&quot;, context.Response.StatusCode == 503 ? &quot;service_unavailable&quot; : &quot;backend_error&quot;)))).ToString())</set-body>
+            </when>
+        </choose>
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

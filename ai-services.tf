@@ -129,3 +129,14 @@ resource "azurerm_role_assignment" "gateway_content_safety_user" {
   principal_id         = local.identity.principal_id
   principal_type       = "ServicePrincipal"
 }
+
+# Document Intelligence and Speech are not OpenAI, so the OpenAI role above does not
+# cover them. Only granted when a capability that needs it is published.
+resource "azurerm_role_assignment" "gateway_cognitive_services_user" {
+  for_each = length(setintersection(toset(var.enabled_capabilities), toset(["document-intelligence-v1", "speech-to-text-fast-v1"]))) > 0 ? { ai_services = {} } : {}
+
+  scope                = azurerm_cognitive_account.ai_services.id
+  role_definition_name = "Cognitive Services User"
+  principal_id         = local.identity.principal_id
+  principal_type       = "ServicePrincipal"
+}

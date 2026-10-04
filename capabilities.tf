@@ -31,6 +31,7 @@ resource "azurerm_api_management_api_policy" "capability" {
     backend_id            = azurerm_api_management_backend.ai_services.name
     model_routing         = local.model_routing
     enable_content_safety = var.enable_content_safety
+    max_request_bytes     = var.speech_max_audio_bytes
   })
 
   depends_on = [azurerm_api_management_policy_fragment.baseline]

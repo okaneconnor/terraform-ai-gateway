@@ -9,6 +9,34 @@ locals {
       api_version   = "2024-10-21"
       request_shape = "chat"
     }
+    "document-intelligence-v1" = {
+      display_name  = "Document Intelligence"
+      path          = "ai/v1/document-intelligence"
+      revision      = "1"
+      spec          = "document-intelligence-v1.yaml"
+      policy        = "api-document-intelligence-v1.xml"
+      api_version   = "2024-11-30"
+      request_shape = "document"
+    }
+    "speech-to-text-fast-v1" = {
+      display_name = "Speech to Text (Fast)"
+      # The colon is in the API path, not the operation: a relative path that begins
+      # "transcriptions:" is read as a URI scheme and fails token validation.
+      path          = "ai/v1/speech-to-text/fast/transcriptions:transcribe"
+      revision      = "1"
+      spec          = "speech-to-text-fast-v1.yaml"
+      policy        = "api-speech-to-text-fast-v1.xml"
+      api_version   = "2025-10-15"
+      request_shape = "audio"
+    }
+  }
+
+  # What a service's allowedModels may name, by request shape. A shape absent here takes
+  # no models. Chat is served by the model deployments, document analysis by the
+  # Document Intelligence models the gateway is configured to permit.
+  served_models = {
+    chat     = keys(local.model_routing)
+    document = var.document_models
   }
 
   capabilities = { for name in var.enabled_capabilities : name => local.capability_catalogue[name] }

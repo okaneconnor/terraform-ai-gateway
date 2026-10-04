@@ -1,0 +1,47 @@
+<policies>
+    <inbound>
+        <base />
+        <!-- The declared length only: a chunked upload has no Content-Length to check. -->
+        <choose>
+            <when condition="@{
+                long declaredLength;
+                return long.TryParse(context.Request.Headers.GetValueOrDefault(&quot;Content-Length&quot;, &quot;0&quot;), out declaredLength) &amp;&amp; declaredLength &gt; ${max_request_bytes};
+            }">
+                <return-response>
+                    <set-status code="413" reason="Content Too Large" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-header name="x-correlation-id" exists-action="override">
+                        <value>@(context.RequestId.ToString())</value>
+                    </set-header>
+                    <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;The audio exceeds the ${max_request_bytes} byte limit for this capability.&quot;), new JProperty(&quot;type&quot;, &quot;invalid_request_error&quot;), new JProperty(&quot;code&quot;, &quot;payload_too_large&quot;)))).ToString())</set-body>
+                </return-response>
+            </when>
+        </choose>
+        <include-fragment fragment-id="ai-header-scrub" />
+        <set-backend-service backend-id="${backend_id}" />
+        <rewrite-uri template="/speechtotext/transcriptions:transcribe?api-version=${api_version}" copy-unmatched-params="false" />
+        <include-fragment fragment-id="ai-backend-managed-identity" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+        <choose>
+            <when condition="@(context.Response.StatusCode &gt;= 500)">
+                <set-header name="Content-Type" exists-action="override">
+                    <value>application/json</value>
+                </set-header>
+                <set-header name="x-correlation-id" exists-action="override">
+                    <value>@(context.RequestId.ToString())</value>
+                </set-header>
+                <set-body>@(new JObject(new JProperty(&quot;error&quot;, new JObject(new JProperty(&quot;message&quot;, &quot;The backend AI service returned an error.&quot;), new JProperty(&quot;type&quot;, &quot;api_error&quot;), new JProperty(&quot;code&quot;, context.Response.StatusCode == 503 ? &quot;service_unavailable&quot; : &quot;backend_error&quot;)))).ToString())</set-body>
+            </when>
+        </choose>
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

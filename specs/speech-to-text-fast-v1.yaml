@@ -1,0 +1,152 @@
+openapi: "3.1.0"
+
+info:
+  title: Speech to Text (Fast)
+  version: "1.0.0"
+  description: >
+    Fast transcription through the AI Gateway: upload an audio file and receive the
+    transcript in the response. Every request must carry a valid Entra token holding
+    one of the gateway's required app roles, and the subscription key issued to the
+    calling service. Audio over the gateway's size limit is refused with 413 before it
+    reaches the backend.
+
+security:
+  - EntraBearer: []
+    ApimSubscriptionKey: []
+
+components:
+  securitySchemes:
+    EntraBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Entra v2.0 JWT. Callers request a token for api://<client-id>/.default using
+        client credentials. Must carry the gateway's required app role. Callers must be
+        managed identities or service principals; no interactive flow is supported.
+    ApimSubscriptionKey:
+      type: apiKey
+      in: header
+      name: Ocp-Apim-Subscription-Key
+      description: APIM subscription key for the calling service.
+
+  schemas:
+    TranscriptionRequest:
+      type: object
+      required: [audio]
+      properties:
+        audio:
+          type: string
+          format: binary
+          description: The audio file (WAV, MP3, OGG/Opus, FLAC and other common formats).
+        definition:
+          type: string
+          description: >
+            JSON string of options, for example {"locales":["en-GB"]}. Setting locales
+            to the expected language improves accuracy and latency.
+          example: '{"locales":["en-GB"]}'
+      encoding:
+        audio:
+          contentType: audio/*
+        definition:
+          contentType: application/json
+    Phrase:
+      type: object
+      additionalProperties: true
+      properties:
+        offsetMilliseconds:
+          type: integer
+        durationMilliseconds:
+          type: integer
+        text:
+          type: string
+        locale:
+          type: string
+        confidence:
+          type: number
+    Transcription:
+      type: object
+      properties:
+        durationMilliseconds:
+          type: integer
+        combinedPhrases:
+          type: array
+          items:
+            type: object
+            properties:
+              channel:
+                type: integer
+              text:
+                type: string
+        phrases:
+          type: array
+          items:
+            $ref: "#/components/schemas/Phrase"
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            type:
+              type: string
+            code:
+              type: string
+
+# The API is published at .../speech-to-text/fast/transcriptions:transcribe, so its
+# one operation is the root. The colon cannot start the operation's own path: API
+# Management reads a relative path that begins "transcriptions:" as a URI scheme and
+# token validation fails. The URL a caller uses is the same either way.
+paths:
+  /:
+    post:
+      operationId: transcribeAudio
+      summary: Transcribe an audio file
+      description: >
+        Transcribes the uploaded audio synchronously. The gateway sets the backend
+        api-version itself and discards any sent by the caller.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/TranscriptionRequest"
+      responses:
+        "200":
+          description: The transcript.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transcription"
+        "400":
+          description: The request is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid token or subscription key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Role missing, identity not permitted, or capability not granted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: The audio exceeds the gateway's size limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Request rate or quota exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
