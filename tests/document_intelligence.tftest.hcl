@@ -126,3 +126,42 @@ run "a_model_the_gateway_does_not_permit_is_refused_at_plan_time" {
 
   expect_failures = [azurerm_api_management_product.application["orders"]]
 }
+
+# The chat request checks parse the body as JSON, so they must only run for the API the
+# chat subscription was granted: a chat key on another API has to reach the capability
+# check (403), not fail parsing a document, and a body that is not JSON has to be
+# refused with 400 rather than raise.
+run "chat_request_checks_are_tied_to_the_chat_api_and_survive_a_bad_body" {
+  command = plan
+
+  variables {
+    applications = {
+      orders = {
+        owner = "payments-team"
+        access = {
+          service_principal_ids = ["11111111-1111-1111-1111-111111111111"]
+        }
+        services = {
+          chat = {
+            capability     = "chat-completions-v1"
+            allowed_models = ["gpt-4o"]
+          }
+          scans = {
+            capability     = "document-intelligence-v1"
+            allowed_models = ["prebuilt-read"]
+          }
+        }
+      }
+    }
+  }
+
+  assert {
+    condition     = strcontains(azurerm_api_management_product_policy.application["orders"].xml_content, "context.Subscription.Name == &quot;orders-chat&quot; &amp;&amp; (context.Api.Id == &quot;chat-completions-v1&quot;")
+    error_message = "The chat request checks must be conditioned on the subscription's own API."
+  }
+
+  assert {
+    condition     = strcontains(azurerm_api_management_product_policy.application["orders"].xml_content, "catch (Exception)")
+    error_message = "A body that is not JSON must be handled, not raise."
+  }
+}

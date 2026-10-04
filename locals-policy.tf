@@ -50,6 +50,14 @@ locals {
       for k, s in local.services : s.subscription_name if s.application == name && s.request_shape == "chat"
     ])
 
+    # A subscription is matched with the API it was granted, so a chat key presented to
+    # another API reaches the capability check (403) instead of the chat request checks.
+    chat_match_conditions = [
+      for k, s in local.services :
+      "context.Subscription.Name == &quot;${s.subscription_name}&quot; &amp;&amp; (context.Api.Id == &quot;${s.capability}&quot; || context.Api.Name == &quot;${s.capability}&quot;)"
+      if s.application == name && s.request_shape == "chat"
+    ]
+
     document_subscriptions = sort([
       for k, s in local.services : s.subscription_name if s.application == name && s.request_shape == "document"
     ])
