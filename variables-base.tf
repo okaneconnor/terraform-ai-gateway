@@ -103,7 +103,7 @@ variable "apim_nsg_additional_rules" {
 }
 
 variable "private_endpoint_nsg_rules" {
-  description = "Security rules for the private endpoint subnet. Empty means no network security group is attached to it."
+  description = "Security rules for the private endpoint subnet. Empty means no network security group is attached and private endpoint network policies stay disabled. Supplying any rule creates and attaches the group and enables NSG enforcement for the subnet's private endpoints; without that Azure ignores NSG rules for private endpoint traffic. Note the default rules still allow VNet-internal traffic, so add an explicit Deny to restrict it."
   # This object type is deliberately identical to apim_nsg_additional_rules above.
   # HCL has no type alias, so keep the two in step by hand if either one changes.
   type = map(object({
